@@ -7,17 +7,17 @@ import (
 )
 
 type Response struct {
-	Success bool        `json:"success"`
-	Message string      `json:"message,omitempty"`
-	Data    interface{} `json:"data,omitempty"`
-	Error   string      `json:"error,omitempty"`
+	Success bool   `json:"success"`
+	Message string `json:"message,omitempty"`
+	Data    any    `json:"data,omitempty"`
+	Error   string `json:"error,omitempty"`
 }
 
 type PaginationResponse struct {
-	Success    bool        `json:"success"`
-	Message    string      `json:"message,omitempty"`
-	Data       interface{} `json:"data,omitempty"`
-	Pagination Pagination  `json:"pagination"`
+	Success    bool       `json:"success"`
+	Message    string     `json:"message,omitempty"`
+	Data       any        `json:"data,omitempty"`
+	Pagination Pagination `json:"pagination"`
 }
 
 type Pagination struct {
@@ -27,7 +27,7 @@ type Pagination struct {
 	TotalPages int   `json:"total_pages"`
 }
 
-func SuccessResponse(c *gin.Context, statusCode int, message string, data interface{}) {
+func SuccessResponse(c *gin.Context, statusCode int, message string, data any) {
 	c.JSON(statusCode, Response{
 		Success: true,
 		Message: message,
@@ -48,7 +48,7 @@ func ErrorResponse(c *gin.Context, statusCode int, message string, err error) {
 	c.JSON(statusCode, response)
 }
 
-func PaginatedResponse(c *gin.Context, data interface{}, pagination Pagination) {
+func PaginatedResponse(c *gin.Context, data any, pagination Pagination) {
 	c.JSON(http.StatusOK, PaginationResponse{
 		Success:    true,
 		Data:       data,

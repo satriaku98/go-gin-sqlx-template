@@ -5,10 +5,10 @@ import (
 	"go-gin-sqlx-template/config"
 	"go-gin-sqlx-template/internal/integration/telegram"
 	"go-gin-sqlx-template/internal/worker"
+	"go-gin-sqlx-template/pkg/logger"
 	"log"
 
 	"github.com/hibiken/asynq"
-	"go.uber.org/zap"
 )
 
 func main() {
@@ -19,13 +19,8 @@ func main() {
 	}
 
 	// 2. Init Logger
-	// Simple zap production logger
-	prodConfig := zap.NewProductionConfig()
-	prodConfig.DisableCaller = true
-	logger, _ := prodConfig.Build()
-	sugar := logger.Sugar()
-
-	sugar.Info("Starting Asynq Worker...")
+	logger := logger.NewLogger()
+	logger.Info("Starting Asynq Worker...")
 
 	// 3. Init Redis Config for Asynq
 	redisOpt := asynq.RedisClientOpt{
@@ -46,21 +41,21 @@ func main() {
 				"default":  3,
 				"low":      1,
 			},
-			Logger: sugar,
+			Logger: logger,
 		},
 	)
 
 	// 5. Init Dependencies
 	telegramService := telegram.NewTelegramService(cfg.TelegramToken, cfg.TelegramBaseURL)
-	telegramHandler := worker.NewTelegramTaskHandler(sugar, telegramService)
+	telegramHandler := worker.NewTelegramTaskHandler(logger, telegramService)
 
 	// 6. Register Tasks
 	mux := asynq.NewServeMux()
 	mux.HandleFunc(worker.TypeTelegramMessage, telegramHandler.HandleTelegramMessageTask)
 
 	// 7. Run Worker
-	sugar.Info("Worker server starting...")
+	logger.Info("Worker server starting...")
 	if err := srv.Run(mux); err != nil {
-		sugar.Fatalf("could not run server: %v", err)
+		logger.Fatal("could not run server: %v", err)
 	}
 }

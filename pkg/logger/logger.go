@@ -37,18 +37,42 @@ func (l *Logger) GetZapLogger() *zap.Logger {
 	return l.sugar.Desugar()
 }
 
-func (l *Logger) Info(format string, v ...interface{}) {
+func (l *Logger) Info(v ...any) {
+	l.sugar.Info(v...)
+}
+
+func (l *Logger) Error(v ...any) {
+	l.sugar.Error(v...)
+}
+
+func (l *Logger) Warn(v ...any) {
+	l.sugar.Warn(v...)
+}
+
+func (l *Logger) Debug(v ...any) {
+	l.sugar.Debug(v...)
+}
+
+func (l *Logger) Fatal(v ...any) {
+	l.sugar.Fatal(v...)
+}
+
+func (l *Logger) Infof(format string, v ...any) {
 	l.sugar.Infof(format, v...)
 }
 
-func (l *Logger) Error(format string, v ...interface{}) {
+func (l *Logger) Errorf(format string, v ...any) {
 	l.sugar.Errorf(format, v...)
 }
 
-func (l *Logger) Debug(format string, v ...interface{}) {
+func (l *Logger) Warnf(format string, v ...any) {
+	l.sugar.Warnf(format, v...)
+}
+
+func (l *Logger) Debugf(format string, v ...any) {
 	l.sugar.Debugf(format, v...)
 }
 
-func (l *Logger) Fatal(format string, v ...interface{}) {
+func (l *Logger) Fatalf(format string, v ...any) {
 	l.sugar.Fatalf(format, v...)
 }
