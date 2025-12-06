@@ -57,6 +57,11 @@ func (r *Router) Setup() *gin.Engine {
 		}
 	}
 
+	// 404 Handler
+	r.engine.NoRoute(func(c *gin.Context) {
+		utils.ErrorResponse(c, 404, "you are lost", nil)
+	})
+
 	return r.engine
 }
 
