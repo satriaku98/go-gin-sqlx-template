@@ -1,0 +1,57 @@
+package middleware
+
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"net/http"
+	"time"
+
+	"go-gin-sqlx-template/pkg/database"
+
+	"github.com/gin-gonic/gin"
+)
+
+type responseBodyWriter struct {
+	gin.ResponseWriter
+	body *bytes.Buffer
+}
+
+func (r responseBodyWriter) Write(b []byte) (int, error) {
+	r.body.Write(b)
+	return r.ResponseWriter.Write(b)
+}
+
+func CacheMiddleware(redisClient *database.RedisClient, ttl time.Duration) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Only cache GET requests
+		if c.Request.Method != http.MethodGet {
+			c.Next()
+			return
+		}
+
+		key := fmt.Sprintf("cache:%s", c.Request.URL.RequestURI())
+		ctx := context.Background()
+
+		// Check cache
+		val, err := redisClient.Client.Get(ctx, key).Result()
+		if err == nil {
+			c.Header("Content-Type", "application/json")
+			c.Header("X-Cache", "HIT")
+			c.String(http.StatusOK, val)
+			c.Abort()
+			return
+		}
+
+		// Cache miss
+		w := &responseBodyWriter{body: bytes.NewBufferString(""), ResponseWriter: c.Writer}
+		c.Writer = w
+
+		c.Next()
+
+		// Save to cache if status is 200
+		if c.Writer.Status() == http.StatusOK {
+			redisClient.Client.Set(ctx, key, w.body.String(), ttl)
+		}
+	}
+}

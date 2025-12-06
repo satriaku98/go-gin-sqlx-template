@@ -21,6 +21,12 @@ type Container struct {
 
 // NewContainer initializes all dependencies and wires them together
 func NewContainer(cfg config.Config, log *logger.Logger, db *database.Database) *Container {
+	// Initialize Redis
+	redisClient, err := database.NewRedisClient(cfg)
+	if err != nil {
+		log.Error("Failed to connect to Redis: %v", err)
+	}
+
 	// Repository layer
 	userRepo := postgres.NewUserRepository(db.DB)
 
@@ -31,7 +37,7 @@ func NewContainer(cfg config.Config, log *logger.Logger, db *database.Database) 
 	userHandler := handler.NewUserHandler(userUsecase)
 
 	// Router
-	r := router.NewRouter(userHandler, log, db)
+	r := router.NewRouter(userHandler, log, db, redisClient)
 
 	return &Container{
 		Config:      cfg,
