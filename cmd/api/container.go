@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"go-gin-sqlx-template/config"
 	"go-gin-sqlx-template/internal/delivery/http/handler"
 	"go-gin-sqlx-template/internal/delivery/http/router"
@@ -8,6 +9,8 @@ import (
 	"go-gin-sqlx-template/internal/usecase/impl"
 	"go-gin-sqlx-template/pkg/database"
 	"go-gin-sqlx-template/pkg/logger"
+
+	"github.com/hibiken/asynq"
 )
 
 // Container holds all application dependencies
@@ -30,8 +33,15 @@ func NewContainer(cfg config.Config, log *logger.Logger, db *database.Database) 
 	// Repository layer
 	userRepo := postgres.NewUserRepository(db.DB)
 
+	// Initialize Asynq Client
+	asynqClient := asynq.NewClient(asynq.RedisClientOpt{
+		Addr:     fmt.Sprintf("%s:%s", cfg.RedisHost, cfg.RedisPort),
+		Password: cfg.RedisPassword,
+		DB:       cfg.RedisDB,
+	})
+
 	// Usecase layer
-	userUsecase := impl.NewUserUsecase(userRepo)
+	userUsecase := impl.NewUserUsecase(userRepo, asynqClient, cfg, log)
 
 	// Handler layer
 	userHandler := handler.NewUserHandler(userUsecase)

@@ -4,20 +4,35 @@ import (
 	"context"
 	"fmt"
 
+	"go-gin-sqlx-template/config"
 	"go-gin-sqlx-template/internal/model"
 	"go-gin-sqlx-template/internal/repository"
 	"go-gin-sqlx-template/internal/usecase"
+	"go-gin-sqlx-template/internal/worker"
+	"go-gin-sqlx-template/pkg/logger"
 
+	"github.com/hibiken/asynq"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type userUsecase struct {
-	userRepo repository.UserRepository
+	userRepo    repository.UserRepository
+	asynqClient *asynq.Client
+	config      config.Config
+	logger      *logger.Logger
 }
 
-func NewUserUsecase(userRepo repository.UserRepository) usecase.UserUsecase {
+func NewUserUsecase(
+	userRepo repository.UserRepository,
+	asynqClient *asynq.Client,
+	cfg config.Config,
+	log *logger.Logger,
+) usecase.UserUsecase {
 	return &userUsecase{
-		userRepo: userRepo,
+		userRepo:    userRepo,
+		asynqClient: asynqClient,
+		config:      cfg,
+		logger:      log,
 	}
 }
 
@@ -43,6 +58,19 @@ func (u *userUsecase) CreateUser(ctx context.Context, req model.CreateUserReques
 	err = u.userRepo.Create(ctx, user)
 	if err != nil {
 		return nil, err
+	}
+
+	// Send Telegram message with asynq task
+	taskPayload := fmt.Sprintf("New user created: %s (%s)", user.Name, user.Email)
+	task, _ := worker.NewTelegramMessageTask(u.config.TelegramChatID, taskPayload)
+	if task != nil {
+		// Enqueue task to be processed asynchronously
+		info, err := u.asynqClient.Enqueue(task)
+		if err != nil {
+			u.logger.Error("Failed to enqueue telegram task: %v", err)
+		} else {
+			u.logger.Info("Enqueued task: id=%s queue=%s", info.ID, info.Queue)
+		}
 	}
 
 	response := user.ToResponse()
@@ -109,6 +137,19 @@ func (u *userUsecase) UpdateUser(ctx context.Context, id int64, req model.Update
 	err = u.userRepo.Update(ctx, user)
 	if err != nil {
 		return nil, err
+	}
+
+	// Send Telegram message with asynq task
+	taskPayload := fmt.Sprintf("User updated: %s (%s)", user.Name, user.Email)
+	task, _ := worker.NewTelegramMessageTask(u.config.TelegramChatID, taskPayload)
+	if task != nil {
+		// Enqueue task to be processed asynchronously
+		info, err := u.asynqClient.Enqueue(task)
+		if err != nil {
+			u.logger.Error("Failed to enqueue telegram task: %v", err)
+		} else {
+			u.logger.Info("Enqueued task: id=%s queue=%s", info.ID, info.Queue)
+		}
 	}
 
 	response := user.ToResponse()
