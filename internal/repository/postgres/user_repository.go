@@ -26,7 +26,7 @@ func (r *userRepository) Create(ctx context.Context, user *model.User) error {
 		RETURNING id, created_at, updated_at
 	`
 
-	err := r.db.QueryRowxContext(ctx, query, user.Email, user.Name, user.Password).
+	err := r.db.QueryRowxContext(ctx, query, user.Email, user.Name, sql.Named("password", user.Password)).
 		Scan(&user.ID, &user.CreatedAt, &user.UpdatedAt)
 
 	if err != nil {

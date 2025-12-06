@@ -47,7 +47,7 @@ func NewContainer(cfg config.Config, log *logger.Logger, db *database.Database) 
 	userHandler := handler.NewUserHandler(userUsecase)
 
 	// Router
-	r := router.NewRouter(userHandler, log, db, redisClient)
+	r := router.NewRouter(userHandler, log, db, redisClient, cfg)
 
 	return &Container{
 		Config:      cfg,

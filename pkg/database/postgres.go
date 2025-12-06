@@ -6,8 +6,10 @@ import (
 
 	"go-gin-sqlx-template/config"
 
+	"github.com/XSAM/otelsql"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
+	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 )
 
 type Database struct {
@@ -24,22 +26,33 @@ func NewPostgresDatabase(cfg config.Config) (*Database, error) {
 		cfg.DBName,
 	)
 
-	db, err := sqlx.Connect("postgres", dsn)
+	// Open database connection with otelsql instrumentation
+	db, err := otelsql.Open("postgres", dsn,
+		otelsql.WithAttributesGetter(GetAttrs),
+		otelsql.WithAttributes(semconv.DBSystemPostgreSQL),
+		otelsql.WithSpanOptions(otelsql.SpanOptions{
+			OmitConnResetSession: true,
+			OmitRows:             true,
+		}),
+	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to database: %w", err)
+		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
-
-	// Set connection pool settings
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(5)
-	db.SetConnMaxLifetime(5 * time.Minute)
 
 	// Verify connection
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	return &Database{DB: db}, nil
+	// Wrap with sqlx
+	sqlxDB := sqlx.NewDb(db, "postgres")
+
+	// Set connection pool settings
+	sqlxDB.SetMaxOpenConns(25)
+	sqlxDB.SetMaxIdleConns(5)
+	sqlxDB.SetConnMaxLifetime(5 * time.Minute)
+
+	return &Database{DB: sqlxDB}, nil
 }
 
 func (d *Database) Close() error {

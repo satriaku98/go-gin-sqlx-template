@@ -1,6 +1,7 @@
 package router
 
 import (
+	"go-gin-sqlx-template/config"
 	"go-gin-sqlx-template/internal/delivery/http/handler"
 	"go-gin-sqlx-template/internal/delivery/http/middleware"
 	"go-gin-sqlx-template/pkg/database"
@@ -10,6 +11,7 @@ import (
 
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
 type Router struct {
@@ -18,6 +20,7 @@ type Router struct {
 	logger      *logger.Logger
 	db          *database.Database
 	redisClient *database.RedisClient
+	cfg         config.Config
 }
 
 func NewRouter(
@@ -25,6 +28,7 @@ func NewRouter(
 	logger *logger.Logger,
 	db *database.Database,
 	redisClient *database.RedisClient,
+	cfg config.Config,
 ) *Router {
 	return &Router{
 		engine:      gin.New(),
@@ -32,6 +36,7 @@ func NewRouter(
 		logger:      logger,
 		db:          db,
 		redisClient: redisClient,
+		cfg:         cfg,
 	}
 }
 
@@ -43,6 +48,9 @@ func (r *Router) Setup() *gin.Engine {
 	zapLogger := r.logger.GetZapLogger()
 	r.engine.Use(middleware.ZapMiddleware(zapLogger))
 	r.engine.Use(ginzap.RecoveryWithZap(zapLogger, true))
+
+	// Add OpenTelemetry middleware
+	r.engine.Use(otelgin.Middleware(r.cfg.ServiceName))
 
 	// Health check endpoint
 	r.engine.GET("/health", r.healthCheck)

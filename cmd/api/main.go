@@ -13,6 +13,7 @@ import (
 	_ "go-gin-sqlx-template/docs" // Import generated docs
 	"go-gin-sqlx-template/pkg/database"
 	"go-gin-sqlx-template/pkg/logger"
+	"go-gin-sqlx-template/pkg/telemetry"
 
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -57,6 +58,18 @@ func main() {
 	// Initialize dependency injection container
 	container := NewContainer(cfg, log, db)
 	log.Info("Dependencies initialized successfully")
+
+	// Initialize OpenTelemetry Tracer
+	shutdown, err := telemetry.InitTracer(cfg)
+	if err != nil {
+		log.Fatal("Failed to initialize tracer: %v", err)
+	}
+	defer func() {
+		if err := shutdown(context.Background()); err != nil {
+			log.Error("Failed to shutdown tracer: %v", err)
+		}
+	}()
+	log.Info("Tracer initialized successfully")
 
 	// Setup router
 	engine := container.Router.Setup()
