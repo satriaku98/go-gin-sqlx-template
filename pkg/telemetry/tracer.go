@@ -14,7 +14,7 @@ import (
 )
 
 // InitTracer initializes the OpenTelemetry tracer provider
-func InitTracer(cfg config.Config) (func(context.Context) error, error) {
+func InitTracer(cfg config.Config, serviceName string) (func(context.Context) error, error) {
 	// Create stdout exporter to be able to retrieve the collected spans.
 	// You can configure this to write to a file or stdout.
 	exporter, err := otlptracehttp.New(
@@ -30,7 +30,7 @@ func InitTracer(cfg config.Config) (func(context.Context) error, error) {
 	res, err := resource.New(context.Background(),
 		resource.WithSchemaURL(semconv.SchemaURL),
 		resource.WithAttributes(
-			semconv.ServiceNameKey.String(cfg.ServiceName),
+			semconv.ServiceNameKey.String(serviceName),
 			attribute.String("environment", cfg.Environment),
 		),
 	)
@@ -48,10 +48,14 @@ func InitTracer(cfg config.Config) (func(context.Context) error, error) {
 	otel.SetTracerProvider(tp)
 
 	// Register propagation
+	RegisterPropagator()
+
+	return tp.Shutdown, nil
+}
+
+func RegisterPropagator() {
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{},
 		propagation.Baggage{},
 	))
-
-	return tp.Shutdown, nil
 }

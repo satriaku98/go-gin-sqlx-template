@@ -62,7 +62,7 @@ func (u *userUsecase) CreateUser(ctx context.Context, req model.CreateUserReques
 
 	// Send Telegram message with asynq task
 	taskPayload := fmt.Sprintf("New user created: %s (%s)", user.Name, user.Email)
-	task, _ := worker.NewTelegramMessageTask(u.config.TelegramChatID, taskPayload)
+	task, _ := worker.NewTelegramMessageTask(ctx, u.config.TelegramChatID, taskPayload)
 	if task != nil {
 		// Enqueue task to be processed asynchronously
 		info, err := u.asynqClient.Enqueue(task)
@@ -141,7 +141,7 @@ func (u *userUsecase) UpdateUser(ctx context.Context, id int64, req model.Update
 
 	// Send Telegram message with asynq task
 	taskPayload := fmt.Sprintf("User updated: %s (%s)", user.Name, user.Email)
-	task, _ := worker.NewTelegramMessageTask(u.config.TelegramChatID, taskPayload)
+	task, _ := worker.NewTelegramMessageTask(ctx, u.config.TelegramChatID, taskPayload)
 	if task != nil {
 		// Enqueue task to be processed asynchronously
 		info, err := u.asynqClient.Enqueue(task)

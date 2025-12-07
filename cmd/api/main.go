@@ -60,7 +60,7 @@ func main() {
 	log.Info("Dependencies initialized successfully")
 
 	// Initialize OpenTelemetry Tracer
-	shutdown, err := telemetry.InitTracer(cfg)
+	shutdown, err := telemetry.InitTracer(cfg, cfg.ServiceName)
 	if err != nil {
 		log.Fatal("Failed to initialize tracer: %v", err)
 	}

@@ -20,6 +20,7 @@ type Config struct {
 	TelegramToken   string `mapstructure:"TELEGRAM_TOKEN"`
 	TelegramChatID  string `mapstructure:"TELEGRAM_CHAT_ID"`
 	ServiceName     string `mapstructure:"SERVICE_NAME"`
+	WorkerName      string `mapstructure:"WORKER_NAME"`
 }
 
 func LoadConfig(path string) (config Config, err error) {

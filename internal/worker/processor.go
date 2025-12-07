@@ -8,6 +8,8 @@ import (
 	"go-gin-sqlx-template/pkg/logger"
 
 	"github.com/hibiken/asynq"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 type TelegramTaskHandler struct {
@@ -29,10 +31,21 @@ func (h *TelegramTaskHandler) HandleTelegramMessageTask(ctx context.Context, t *
 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 	}
 
+	// Extract trace context and start span
+	if p.TraceContext != nil {
+		carrier := propagation.MapCarrier(p.TraceContext)
+		ctx = otel.GetTextMapPropagator().Extract(ctx, carrier)
+	}
+
+	tracer := otel.Tracer(t.ResultWriter().TaskID())
+	ctx, span := tracer.Start(ctx, "HandleTelegramMessageTask")
+	defer span.End()
+
 	h.logger.Info("Sending telegram message to %s", p.ChatID)
 	err := h.telegramService.SendMessage(ctx, p.ChatID, p.Text)
 	if err != nil {
 		h.logger.Error("Failed to send telegram message: %v", err)
+		span.RecordError(err)
 		return fmt.Errorf("failed to send telegram message: %w", err)
 	}
 
