@@ -22,8 +22,10 @@ A production-ready REST API template built with Go, Gin web framework, and SQLX 
 ```
 .
 ├── cmd/
-│   └── api/
-│       └── main.go              # Application entry point
+│   ├── api/
+│   │   └── main.go              # Application entry point
+│   └── worker/
+│       └── main.go              # Worker entry point
 ├── config/
 │   └── config.go                # Configuration management
 ├── internal/
@@ -32,14 +34,19 @@ A production-ready REST API template built with Go, Gin web framework, and SQLX 
 │   │       ├── handler/         # HTTP handlers
 │   │       ├── middleware/      # HTTP middleware
 │   │       └── router/          # Route definitions
+│   ├── integration/             # External service adapters (e.g. Telegram)
 │   ├── model/                   # Domain models and DTOs
 │   ├── repository/              # Data access layer
 │   │   └── postgres/            # PostgreSQL implementations
-│   └── usecase/                 # Business logic layer
-│       └── impl/                # Usecase implementations
+│   ├── usecase/                 # Business logic layer
+│   │   └── impl/                # Usecase implementations
+│   └── worker/                  # Worker service
+│       ├── processor.go         # Task processor
+│       └── tasks.go             # Task definitions
 ├── pkg/
 │   ├── database/                # Database connection
 │   ├── logger/                  # Logging utility
+│   ├── telemetry/               # OpenTelemetry setup
 │   └── utils/                   # Utility functions
 ├── migrations/                  # Database migrations
 ├── .env                         # Environment variables
