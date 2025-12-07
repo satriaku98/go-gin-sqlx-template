@@ -12,11 +12,13 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 )
 
+// TelegramTaskHandler handles telegram-related tasks
 type TelegramTaskHandler struct {
 	logger          *logger.Logger
 	telegramService *telegram.TelegramService
 }
 
+// NewTelegramTaskHandler creates a new TelegramTaskHandler
 func NewTelegramTaskHandler(logger *logger.Logger, telegramService *telegram.TelegramService) *TelegramTaskHandler {
 	return &TelegramTaskHandler{
 		logger:          logger,
@@ -24,6 +26,7 @@ func NewTelegramTaskHandler(logger *logger.Logger, telegramService *telegram.Tel
 	}
 }
 
+// HandleTelegramMessageTask processes telegram message sending tasks
 func (h *TelegramTaskHandler) HandleTelegramMessageTask(ctx context.Context, t *asynq.Task) error {
 	var p TelegramMessagePayload
 	if err := json.Unmarshal(t.Payload(), &p); err != nil {
