@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
+	"net/url"
 	"strings"
 	"time"
 
@@ -71,12 +71,14 @@ func SendRequest(ctx context.Context, config HttpRequestConfig) (*HttpResponse, 
 
 	// Prepare request body
 	var bodyReader io.Reader
+	var bodyBytes []byte
+
 	if config.Body != nil {
 		switch v := config.Body.(type) {
 		case string:
-			bodyReader = bytes.NewBufferString(v)
+			bodyBytes = []byte(v)
 		case []byte:
-			bodyReader = bytes.NewBuffer(v)
+			bodyBytes = v
 		default:
 			jsonBody, err := json.Marshal(config.Body)
 			if err != nil {
@@ -84,8 +86,12 @@ func SendRequest(ctx context.Context, config HttpRequestConfig) (*HttpResponse, 
 				span.SetStatus(codes.Error, "failed to marshal request body")
 				return nil, fmt.Errorf("failed to marshal request body: %w", err)
 			}
-			bodyReader = bytes.NewBuffer(jsonBody)
+			bodyBytes = jsonBody
 		}
+	}
+
+	if len(bodyBytes) > 0 {
+		bodyReader = bytes.NewReader(bodyBytes)
 	}
 
 	// Create request
@@ -105,7 +111,7 @@ func SendRequest(ctx context.Context, config HttpRequestConfig) (*HttpResponse, 
 	}
 
 	// Build curl command
-	curlCmd := buildCurlCommand(req, config.Body)
+	curlCmd := buildCurlCommand(req, bodyBytes)
 
 	// Set attributes
 	span.SetAttributes(
@@ -139,6 +145,7 @@ func SendRequest(ctx context.Context, config HttpRequestConfig) (*HttpResponse, 
 	// Set status code di span
 	span.SetAttributes(
 		attribute.Int("http.status_code", resp.StatusCode),
+		attribute.String("http.response_body", string(respBody)),
 	)
 
 	return &HttpResponse{
@@ -148,40 +155,148 @@ func SendRequest(ctx context.Context, config HttpRequestConfig) (*HttpResponse, 
 	}, nil
 }
 
-func buildCurlCommand(req *http.Request, body any) string {
+func buildCurlCommand(req *http.Request, rawBody []byte) string {
 	var b strings.Builder
 
 	b.WriteString("curl -X ")
 	b.WriteString(req.Method)
+	b.WriteString(" '")
+	b.WriteString(buildRedactedURL(req.URL))
+	b.WriteString("'")
 
-	// Headers
-	for k, values := range req.Header {
+	// headers
+	for name, values := range req.Header {
 		for _, v := range values {
-			b.WriteString(` -H `)
-			b.WriteString(strconv.Quote(fmt.Sprintf("%s: %s", k, v)))
-		}
-	}
-
-	// Body
-	if body != nil {
-		switch v := body.(type) {
-		case string:
-			b.WriteString(" --data ")
-			b.WriteString(strconv.Quote(v))
-		case []byte:
-			b.WriteString(" --data ")
-			b.WriteString(strconv.Quote(string(v)))
-		default:
-			if jsonBody, err := json.Marshal(v); err == nil {
-				b.WriteString(" --data ")
-				b.WriteString(strconv.Quote(string(jsonBody)))
+			headerVal := v
+			if isSensitiveKey(name) {
+				headerVal = "***REDACTED***"
 			}
+			b.WriteString(" \\\n  -H '")
+			b.WriteString(name)
+			b.WriteString(": ")
+			b.WriteString(headerVal)
+			b.WriteString("'")
 		}
 	}
 
-	// URL (paling akhir)
-	b.WriteString(" ")
-	b.WriteString(strconv.Quote(req.URL.String()))
+	// body
+	if len(rawBody) > 0 {
+		contentType := req.Header.Get("Content-Type")
+		redBody := redactBody(rawBody, contentType)
+		if len(redBody) > 0 {
+			b.WriteString(" \\\n  --data '")
+			bodyStr := string(redBody)
+			// escape single quote biar aman di shell
+			bodyStr = strings.ReplaceAll(bodyStr, `'`, `'\''`)
+			b.WriteString(bodyStr)
+			b.WriteString("'")
+		}
+	}
 
 	return b.String()
+}
+
+func isSensitiveKey(key string) bool {
+	switch strings.ToLower(key) {
+	case
+		"authorization",
+		"proxy-authorization",
+		"cookie",
+		"set-cookie",
+		"x-api-key",
+		"x-api-token",
+		"x-access-token",
+		"x-auth-token",
+		"apikey",
+		"api-key",
+		"password",
+		"pass",
+		"pwd",
+		"token",
+		"access_token",
+		"refresh_token",
+		"client_secret",
+		"secret":
+		return true
+	default:
+		return false
+	}
+}
+
+func buildRedactedURL(u *url.URL) string {
+	if u == nil {
+		return ""
+	}
+	clone := *u
+	q := clone.Query()
+
+	for key := range q {
+		if isSensitiveKey(key) {
+			q.Set(key, "***REDACTED***")
+		}
+	}
+	clone.RawQuery = q.Encode()
+
+	return clone.String()
+}
+
+func redactJSON(v any) any {
+	switch t := v.(type) {
+	case map[string]any:
+		m2 := make(map[string]any, len(t))
+		for k, val := range t {
+			if isSensitiveKey(k) {
+				m2[k] = "***REDACTED***"
+			} else {
+				m2[k] = redactJSON(val)
+			}
+		}
+		return m2
+	case []any:
+		for i, val := range t {
+			t[i] = redactJSON(val)
+		}
+		return t
+	default:
+		return v
+	}
+}
+
+func redactBody(body []byte, contentType string) []byte {
+	if len(body) == 0 {
+		return body
+	}
+
+	ct := strings.ToLower(contentType)
+
+	// JSON body
+	if strings.Contains(ct, "application/json") {
+		var v any
+		if err := json.Unmarshal(body, &v); err != nil {
+			// kalau gagal parsing, lebih aman di-redact penuh
+			return []byte("<redacted>")
+		}
+		v = redactJSON(v)
+		out, err := json.Marshal(v)
+		if err != nil {
+			return []byte("<redacted>")
+		}
+		return out
+	}
+
+	// Form body
+	if strings.Contains(ct, "application/x-www-form-urlencoded") {
+		vals, err := url.ParseQuery(string(body))
+		if err != nil {
+			return []byte("<redacted>")
+		}
+		for key := range vals {
+			if isSensitiveKey(key) {
+				vals.Set(key, "***REDACTED***")
+			}
+		}
+		return []byte(vals.Encode())
+	}
+
+	return body
 }
