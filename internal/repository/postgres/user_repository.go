@@ -25,7 +25,7 @@ func (r *userRepository) Create(ctx context.Context, user *model.User) error {
 		VALUES ($1, $2, $3, NOW(), NOW())
 		RETURNING id, created_at, updated_at
 	`
-
+	// register password as sensitive parameter
 	err := r.db.QueryRowxContext(ctx, query, user.Email, user.Name, sql.Named("password", user.Password)).
 		Scan(&user.ID, &user.CreatedAt, &user.UpdatedAt)
 
