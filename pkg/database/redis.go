@@ -26,3 +26,7 @@ func NewRedisClient(cfg config.Config) (*RedisClient, error) {
 
 	return &RedisClient{Client: client}, nil
 }
+
+func (r *RedisClient) HealthCheck(ctx context.Context) error {
+	return r.Client.Ping(ctx).Err()
+}

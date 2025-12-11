@@ -7,6 +7,7 @@ import (
 	"go-gin-sqlx-template/pkg/database"
 	"go-gin-sqlx-template/pkg/logger"
 	"go-gin-sqlx-template/pkg/utils"
+	"net/http"
 	"time"
 
 	ginzap "github.com/gin-contrib/zap"
@@ -71,7 +72,7 @@ func (r *Router) Setup() *gin.Engine {
 
 	// 404 Handler
 	r.engine.NoRoute(func(c *gin.Context) {
-		utils.ErrorResponse(c, 404, "you are lost", nil)
+		utils.ErrorResponse(c, http.StatusNotFound, "you are lost", nil)
 	})
 
 	return r.engine
@@ -79,15 +80,15 @@ func (r *Router) Setup() *gin.Engine {
 
 func (r *Router) healthCheck(c *gin.Context) {
 	if err := r.db.HealthCheck(); err != nil {
-		utils.ErrorResponse(c, 503, "Database connection failed", err)
+		utils.ErrorResponse(c, http.StatusServiceUnavailable, "Database connection failed", err)
 		return
 	}
-	if err := r.redisClient.Client.Ping(c.Request.Context()).Err(); err != nil {
-		utils.ErrorResponse(c, 503, "Redis connection failed", err)
+	if err := r.redisClient.HealthCheck(c.Request.Context()); err != nil {
+		utils.ErrorResponse(c, http.StatusServiceUnavailable, "Redis connection failed", err)
 		return
 	}
 
-	utils.SuccessResponse(c, 200, "Service is healthy", gin.H{
+	utils.SuccessResponse(c, http.StatusOK, "Service is healthy", gin.H{
 		"status":   "ok",
 		"database": "connected",
 		"redis":    "connected",
