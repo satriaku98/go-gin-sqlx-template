@@ -7,6 +7,7 @@ import (
 
 	"go-gin-sqlx-template/internal/model"
 	"go-gin-sqlx-template/internal/repository"
+	"go-gin-sqlx-template/pkg/database"
 
 	"github.com/jmoiron/sqlx"
 )
@@ -22,15 +23,26 @@ func NewUserRepository(db *sqlx.DB) repository.UserRepository {
 func (r *userRepository) Create(ctx context.Context, user *model.User) error {
 	query := `
 		INSERT INTO users (email, name, password, created_at, updated_at)
-		VALUES ($1, $2, $3, NOW(), NOW())
+		VALUES (:email, :name, :password, NOW(), NOW())
 		RETURNING id, created_at, updated_at
 	`
-	// register password as sensitive parameter
-	err := r.db.QueryRowxContext(ctx, query, user.Email, user.Name, sql.Named("password", user.Password)).
-		Scan(&user.ID, &user.CreatedAt, &user.UpdatedAt)
+	args := map[string]any{
+		"email":    user.Email,
+		"name":     user.Name,
+		"password": user.Password,
+	}
 
+	row, err := r.db.NamedQueryContext(ctx, query, database.MapsToNamedArgsMap(args))
 	if err != nil {
 		return fmt.Errorf("failed to create user: %w", err)
+	}
+	defer row.Close()
+
+	if row.Next() {
+		err = row.Scan(&user.ID, &user.CreatedAt, &user.UpdatedAt)
+		if err != nil {
+			return fmt.Errorf("failed to scan created user: %w", err)
+		}
 	}
 
 	return nil
@@ -38,14 +50,26 @@ func (r *userRepository) Create(ctx context.Context, user *model.User) error {
 
 func (r *userRepository) GetByID(ctx context.Context, id int64) (*model.User, error) {
 	var user model.User
-	query := `SELECT id, email, name, password, created_at, updated_at FROM users WHERE id = $1`
+	query := `SELECT id, email, name, password, created_at, updated_at FROM users WHERE id = :id`
 
-	err := r.db.GetContext(ctx, &user, query, id)
+	args := map[string]any{
+		"id": id,
+	}
+
+	row, err := r.db.NamedQueryContext(ctx, query, database.MapsToNamedArgsMap(args))
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("user not found")
 		}
 		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+	defer row.Close()
+
+	if row.Next() {
+		err = row.StructScan(&user)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan user: %w", err)
+		}
 	}
 
 	return &user, nil
@@ -53,14 +77,25 @@ func (r *userRepository) GetByID(ctx context.Context, id int64) (*model.User, er
 
 func (r *userRepository) GetByEmail(ctx context.Context, email string) (*model.User, error) {
 	var user model.User
-	query := `SELECT id, email, name, password, created_at, updated_at FROM users WHERE email = $1`
+	query := `SELECT id, email, name, password, created_at, updated_at FROM users WHERE email = :email`
 
-	err := r.db.GetContext(ctx, &user, query, email)
+	args := map[string]any{
+		"email": email,
+	}
+
+	row, err := r.db.NamedQueryContext(ctx, query, database.MapsToNamedArgsMap(args))
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("user not found")
-		}
 		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+	defer row.Close()
+
+	if !row.Next() {
+		return nil, fmt.Errorf("user not found")
+	}
+
+	err = row.StructScan(&user)
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan user: %w", err)
 	}
 
 	return &user, nil
@@ -72,12 +107,22 @@ func (r *userRepository) GetAll(ctx context.Context, limit, offset int) ([]model
 		SELECT id, email, name, password, created_at, updated_at 
 		FROM users 
 		ORDER BY created_at DESC
-		LIMIT $1 OFFSET $2
+		LIMIT :limit OFFSET :offset
 	`
+	args := map[string]any{
+		"limit":  limit,
+		"offset": offset,
+	}
 
-	err := r.db.SelectContext(ctx, &users, query, limit, offset)
+	rows, err := r.db.NamedQueryContext(ctx, query, database.MapsToNamedArgsMap(args))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get users: %w", err)
+	}
+	defer rows.Close()
+
+	err = sqlx.StructScan(rows, &users)
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan users: %w", err)
 	}
 
 	return users, nil
@@ -86,28 +131,39 @@ func (r *userRepository) GetAll(ctx context.Context, limit, offset int) ([]model
 func (r *userRepository) Update(ctx context.Context, user *model.User) error {
 	query := `
 		UPDATE users 
-		SET email = $1, name = $2, updated_at = NOW()
-		WHERE id = $3
+		SET email = :email, name = :name, updated_at = NOW()
+		WHERE id = :id
 		RETURNING updated_at
 	`
+	args := map[string]any{
+		"email": user.Email,
+		"name":  user.Name,
+		"id":    user.ID,
+	}
 
-	err := r.db.QueryRowxContext(ctx, query, user.Email, user.Name, user.ID).
-		Scan(&user.UpdatedAt)
-
+	row, err := r.db.NamedQueryContext(ctx, query, database.MapsToNamedArgsMap(args))
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return fmt.Errorf("user not found")
 		}
 		return fmt.Errorf("failed to update user: %w", err)
 	}
+	err = row.Scan(&user.UpdatedAt)
+	if err != nil {
+		return fmt.Errorf("failed to scan updated user: %w", err)
+	}
 
 	return nil
 }
 
 func (r *userRepository) Delete(ctx context.Context, id int64) error {
-	query := `DELETE FROM users WHERE id = $1`
+	query := `DELETE FROM users WHERE id = :id`
 
-	result, err := r.db.ExecContext(ctx, query, id)
+	args := map[string]any{
+		"id": id,
+	}
+
+	result, err := r.db.NamedExecContext(ctx, query, database.MapsToNamedArgsMap(args))
 	if err != nil {
 		return fmt.Errorf("failed to delete user: %w", err)
 	}
