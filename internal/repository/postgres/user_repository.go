@@ -8,6 +8,7 @@ import (
 	"go-gin-sqlx-template/internal/model"
 	"go-gin-sqlx-template/internal/repository"
 	"go-gin-sqlx-template/pkg/database"
+	"go-gin-sqlx-template/pkg/utils"
 
 	"github.com/jmoiron/sqlx"
 )
@@ -101,18 +102,30 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*model.U
 	return &user, nil
 }
 
-func (r *userRepository) GetAll(ctx context.Context, limit, offset int) ([]model.User, error) {
+func (r *userRepository) GetAll(ctx context.Context, limit, offset int, filters utils.FilterParams) ([]model.User, error) {
 	var users []model.User
-	query := `
-		SELECT id, email, name, password, created_at, updated_at 
-		FROM users 
-		ORDER BY created_at DESC
-		LIMIT :limit OFFSET :offset
-	`
+
+	// Build WHERE clause based on filters
+	whereClauses := []string{}
 	args := map[string]any{
 		"limit":  limit,
 		"offset": offset,
 	}
+
+	if name, ok := filters.Get("name"); ok {
+		whereClauses = append(whereClauses, "name ILIKE :name")
+		args["name"] = "%" + name + "%"
+	}
+
+	if email, ok := filters.Get("email"); ok {
+		whereClauses = append(whereClauses, "email ILIKE :email")
+		args["email"] = "%" + email + "%"
+	}
+
+	// Build query
+	query := `SELECT id, email, name, password, created_at, updated_at FROM users`
+	query += utils.BuildWhereClause(whereClauses)
+	query += ` ORDER BY created_at DESC LIMIT :limit OFFSET :offset`
 
 	rows, err := r.db.NamedQueryContext(ctx, query, database.SetMapSqlNamed(args))
 	if err != nil {
@@ -185,13 +198,47 @@ func (r *userRepository) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (r *userRepository) Count(ctx context.Context) (int64, error) {
+func (r *userRepository) Count(ctx context.Context, filters utils.FilterParams) (int64, error) {
 	var count int64
-	query := `SELECT COUNT(*) FROM users`
 
-	err := r.db.GetContext(ctx, &count, query)
-	if err != nil {
-		return 0, fmt.Errorf("failed to count users: %w", err)
+	// Build WHERE clause based on filters
+	whereClauses := []string{}
+	args := map[string]any{}
+
+	if name, ok := filters.Get("name"); ok {
+		whereClauses = append(whereClauses, "name ILIKE :name")
+		args["name"] = "%" + name + "%"
+	}
+
+	if email, ok := filters.Get("email"); ok {
+		whereClauses = append(whereClauses, "email ILIKE :email")
+		args["email"] = "%" + email + "%"
+	}
+
+	// Build query
+	query := `SELECT COUNT(*) FROM users`
+	query += utils.BuildWhereClause(whereClauses)
+
+	if len(args) > 0 {
+		// Use NamedQuery for parameterized query
+		rows, err := r.db.NamedQueryContext(ctx, query, database.SetMapSqlNamed(args))
+		if err != nil {
+			return 0, fmt.Errorf("failed to count users: %w", err)
+		}
+		defer rows.Close()
+
+		if rows.Next() {
+			err = rows.Scan(&count)
+			if err != nil {
+				return 0, fmt.Errorf("failed to scan count: %w", err)
+			}
+		}
+	} else {
+		// No filters, use simple query
+		err := r.db.GetContext(ctx, &count, query)
+		if err != nil {
+			return 0, fmt.Errorf("failed to count users: %w", err)
+		}
 	}
 
 	return count, nil

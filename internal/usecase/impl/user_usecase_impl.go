@@ -10,9 +10,11 @@ import (
 	"go-gin-sqlx-template/internal/usecase"
 	"go-gin-sqlx-template/internal/worker"
 	"go-gin-sqlx-template/pkg/logger"
+	"go-gin-sqlx-template/pkg/utils"
 
 	"github.com/hibiken/asynq"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/sync/errgroup"
 )
 
 type userUsecase struct {
@@ -88,23 +90,27 @@ func (u *userUsecase) GetUserByID(ctx context.Context, id int64) (*model.UserRes
 	return &response, nil
 }
 
-func (u *userUsecase) GetAllUsers(ctx context.Context, page, limit int) ([]model.UserResponse, int64, error) {
-	if page < 1 {
-		page = 1
-	}
-	if limit < 1 {
-		limit = 10
-	}
+func (u *userUsecase) GetAllUsers(ctx context.Context, pagination utils.PaginationParams, filters utils.FilterParams) ([]model.UserResponse, int64, error) {
+	var (
+		users []model.User
+		total int64
+		err   error
+	)
 
-	offset := (page - 1) * limit
+	// Run GetAll and Count concurrently
+	g, ctx := errgroup.WithContext(ctx)
 
-	users, err := u.userRepo.GetAll(ctx, limit, offset)
-	if err != nil {
-		return nil, 0, err
-	}
+	g.Go(func() error {
+		users, err = u.userRepo.GetAll(ctx, pagination.Limit, pagination.Offset, filters)
+		return err
+	})
 
-	total, err := u.userRepo.Count(ctx)
-	if err != nil {
+	g.Go(func() error {
+		total, err = u.userRepo.Count(ctx, filters)
+		return err
+	})
+
+	if err := g.Wait(); err != nil {
 		return nil, 0, err
 	}
 

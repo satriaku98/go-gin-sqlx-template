@@ -79,27 +79,45 @@ func (h *UserHandler) GetUserByID(c *gin.Context) {
 
 // GetAllUsers godoc
 // @Summary      Get all users
-// @Description  Get all users with pagination
+// @Description  Get all users with pagination and optional filters
 // @Tags         users
 // @Accept       json
 // @Produce      json
-// @Param        page   query     int  false  "Page number" default(1)
-// @Param        limit  query     int  false  "Limit per page" default(10)
+// @Param        page   query     int     false  "Page number" default(1)
+// @Param        limit  query     int     false  "Limit per page" default(10)
+// @Param        name   query     string  false  "Filter by name (partial match)"
+// @Param        email  query     string  false  "Filter by email (partial match)"
 // @Success      200  {object}  utils.PaginationResponse{data=[]model.UserResponse}
+// @Failure      400  {object}  utils.Response
 // @Failure      500  {object}  utils.Response
 // @Router       /users [get]
-func (h *UserHandler) GetAllUsers(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+var getAllUsersAllowedFilters = []string{"name", "email"}
 
-	users, total, err := h.userUsecase.GetAllUsers(c.Request.Context(), page, limit)
+func (h *UserHandler) GetAllUsers(c *gin.Context) {
+	// Parse pagination parameters
+	pagination := utils.ParsePagination(c)
+
+	// Parse filter parameters (only allow name and email)
+	filters, err := utils.ParseFilters(c, getAllUsersAllowedFilters)
+	if err != nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, "Invalid query parameters", err)
+		return
+	}
+
+	// Get users with pagination and filters
+	users, total, err := h.userUsecase.GetAllUsers(
+		c.Request.Context(),
+		pagination,
+		filters,
+	)
 	if err != nil {
 		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to get users", err)
 		return
 	}
 
-	pagination := utils.CalculatePagination(page, limit, total)
-	utils.PaginatedResponse(c, users, pagination)
+	// Create pagination metadata
+	paginationMeta := utils.CalculatePagination(pagination.Page, pagination.Limit, total)
+	utils.PaginatedResponse(c, users, paginationMeta)
 }
 
 // UpdateUser godoc
