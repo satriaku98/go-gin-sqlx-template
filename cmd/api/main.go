@@ -38,38 +38,38 @@ import (
 func main() {
 	// Initialize logger
 	log := logger.NewLogger()
-	log.Info("Starting application...")
+	log.Info(context.Background(), "Starting application...")
 
 	// Load configuration
 	cfg, err := config.LoadConfig(".")
 	if err != nil {
-		log.Fatal("Failed to load config: %v", err)
+		log.Fatalf(context.Background(), "Failed to load config: %v", err)
 	}
-	log.Info("Configuration loaded successfully")
+	log.Info(context.Background(), "Configuration loaded successfully")
 
 	// Initialize database
 	db, err := database.NewPostgresDatabase(cfg)
 	if err != nil {
-		log.Fatal("Failed to connect to database: %v", err)
+		log.Fatalf(context.Background(), "Failed to connect to database: %v", err)
 	}
 	defer db.Close()
-	log.Info("Database connected successfully")
+	log.Info(context.Background(), "Database connected successfully")
 
 	// Initialize dependency injection container
 	container := NewContainer(cfg, log, db)
-	log.Info("Dependencies initialized successfully")
+	log.Info(context.Background(), "Dependencies initialized successfully")
 
 	// Initialize OpenTelemetry Tracer
 	shutdown, err := telemetry.InitTracer(cfg, cfg.ServiceName)
 	if err != nil {
-		log.Fatal("Failed to initialize tracer: %v", err)
+		log.Fatalf(context.Background(), "Failed to initialize tracer: %v", err)
 	}
 	defer func() {
 		if err := shutdown(context.Background()); err != nil {
-			log.Error("Failed to shutdown tracer: %v", err)
+			log.Errorf(context.Background(), "Failed to shutdown tracer: %v", err)
 		}
 	}()
-	log.Info("Tracer initialized successfully")
+	log.Info(context.Background(), "Tracer initialized successfully")
 
 	// Setup router
 	engine := container.Router.Setup()
@@ -85,9 +85,9 @@ func main() {
 
 	// Start server in goroutine
 	go func() {
-		log.Info("Server starting on port %s", cfg.ServerPort)
+		log.Infof(context.Background(), "Server starting on port %s", cfg.ServerPort)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatal("Failed to start server: %v", err)
+			log.Fatalf(context.Background(), "Failed to start server: %v", err)
 		}
 	}()
 
@@ -96,14 +96,14 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Info("Shutting down server...")
+	log.Info(context.Background(), "Shutting down server...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatal("Server forced to shutdown: %v", err)
+		log.Fatalf(ctx, "Server forced to shutdown: %v", err)
 	}
 
-	log.Info("Server exited gracefully")
+	log.Info(ctx, "Server exited gracefully")
 }

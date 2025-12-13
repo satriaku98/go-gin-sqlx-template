@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"time"
 
-	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
@@ -42,16 +41,12 @@ func NewRouter(
 }
 
 func (r *Router) Setup() *gin.Engine {
-	// Apply global middleware
-	r.engine.Use(middleware.CORS())
-
-	// Add Zap middleware
-	zapLogger := r.logger.GetZapLogger()
-	r.engine.Use(middleware.ZapMiddleware(zapLogger))
-	r.engine.Use(ginzap.RecoveryWithZap(zapLogger, true))
-
-	// Add OpenTelemetry middleware
+	// Add OpenTelemetry middleware FIRST to create span context
 	r.engine.Use(otelgin.Middleware(r.cfg.ServiceName))
+
+	// Apply global middleware
+	r.engine.Use(middleware.Recovery(r.logger))
+	r.engine.Use(middleware.RequestLogger(r.logger))
 
 	// Health check endpoint
 	r.engine.GET("/health", r.healthCheck)

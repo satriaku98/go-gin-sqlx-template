@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"go-gin-sqlx-template/config"
 	"go-gin-sqlx-template/internal/integration/telegram"
@@ -20,8 +21,8 @@ func main() {
 	}
 
 	// Init Logger
-	logger := logger.NewLogger()
-	logger.Info("Starting Asynq Worker...")
+	loggerInstance := logger.NewLogger()
+	loggerInstance.Info(context.Background(), "Starting Asynq Worker...")
 
 	// Init Redis Config for Asynq
 	redisOpt := asynq.RedisClientOpt{
@@ -45,21 +46,21 @@ func main() {
 				"default":  3,
 				"low":      1,
 			},
-			Logger: logger,
+			Logger: logger.NewAsynqLoggerAdapter(loggerInstance),
 		},
 	)
 
 	// Init Dependencies
 	telegramService := telegram.NewTelegramService(cfg.TelegramToken, cfg.TelegramBaseURL)
-	telegramHandler := worker.NewTelegramTaskHandler(logger, telegramService)
+	telegramHandler := worker.NewTelegramTaskHandler(loggerInstance, telegramService)
 
 	// Register Tasks
 	mux := asynq.NewServeMux()
 	mux.HandleFunc(worker.TypeTelegramMessage, telegramHandler.HandleTelegramMessageTask)
 
 	// Run Worker
-	logger.Info("Worker server starting...")
+	loggerInstance.Info(context.Background(), "Worker server starting...")
 	if err := srv.Run(mux); err != nil {
-		logger.Fatal("could not run server: %v", err)
+		loggerInstance.Fatalf(context.Background(), "could not run server: %v", err)
 	}
 }

@@ -30,7 +30,7 @@ func NewTelegramTaskHandler(logger *logger.Logger, telegramService *telegram.Tel
 func (h *TelegramTaskHandler) HandleTelegramMessageTask(ctx context.Context, t *asynq.Task) error {
 	var p TelegramMessagePayload
 	if err := json.Unmarshal(t.Payload(), &p); err != nil {
-		h.logger.Error("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
+		h.logger.Errorf(ctx, "json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 	}
 
@@ -44,14 +44,14 @@ func (h *TelegramTaskHandler) HandleTelegramMessageTask(ctx context.Context, t *
 	ctx, span := tracer.Start(ctx, "HandleTelegramMessageTask")
 	defer span.End()
 
-	h.logger.Info("Sending telegram message to %s", p.ChatID)
+	h.logger.Infof(ctx, "Sending telegram message to %s", p.ChatID)
 	err := h.telegramService.SendMessage(ctx, p.ChatID, p.Text)
 	if err != nil {
-		h.logger.Error("Failed to send telegram message: %v", err)
+		h.logger.Errorf(ctx, "Failed to send telegram message: %v", err)
 		span.RecordError(err)
 		return fmt.Errorf("failed to send telegram message: %w", err)
 	}
 
-	h.logger.Info("Telegram message sent successfully")
+	h.logger.Info(ctx, "Telegram message sent successfully")
 	return nil
 }

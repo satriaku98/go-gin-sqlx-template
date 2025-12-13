@@ -67,9 +67,10 @@ func (u *userUsecase) CreateUser(ctx context.Context, req model.CreateUserReques
 		// Enqueue task to be processed asynchronously
 		info, err := u.asynqClient.Enqueue(task)
 		if err != nil {
-			u.logger.Error("Failed to enqueue telegram task: %v", err)
+			u.logger.Errorf(ctx, "Failed to enqueue telegram task: %v", err)
 		} else {
-			u.logger.Info("Enqueued task: id=%s queue=%s", info.ID, info.Queue)
+
+			u.logger.Infof(ctx, "Enqueued task: id=%s queue=%s", info.ID, info.Queue)
 		}
 	}
 
@@ -146,9 +147,9 @@ func (u *userUsecase) UpdateUser(ctx context.Context, id int64, req model.Update
 		// Enqueue task to be processed asynchronously
 		info, err := u.asynqClient.Enqueue(task)
 		if err != nil {
-			u.logger.Error("Failed to enqueue telegram task: %v", err)
+			u.logger.Errorf(ctx, "Failed to enqueue telegram task: %v", err)
 		} else {
-			u.logger.Info("Enqueued task: id=%s queue=%s", info.ID, info.Queue)
+			u.logger.Infof(ctx, "Enqueued task: id=%s queue=%s", info.ID, info.Queue)
 		}
 	}
 

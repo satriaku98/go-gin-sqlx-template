@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"go-gin-sqlx-template/config"
 	"go-gin-sqlx-template/internal/delivery/http/handler"
@@ -27,7 +28,7 @@ func NewContainer(cfg config.Config, log *logger.Logger, db *database.Database) 
 	// Initialize Redis
 	redisClient, err := database.NewRedisClient(cfg)
 	if err != nil {
-		log.Error("Failed to connect to Redis: %v", err)
+		log.Errorf(context.Background(), "Failed to connect to Redis: %v", err)
 	}
 
 	// Repository layer
