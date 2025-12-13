@@ -3,7 +3,6 @@ module go-gin-sqlx-template
 go 1.25.2
 
 require (
-	github.com/gin-contrib/zap v1.1.6
 	github.com/gin-gonic/gin v1.11.0
 	github.com/hibiken/asynq v0.25.1
 	github.com/jmoiron/sqlx v1.4.0
