@@ -32,7 +32,7 @@ func (r *userRepository) Create(ctx context.Context, user *model.User) error {
 		"password": user.Password,
 	}
 
-	row, err := r.db.NamedQueryContext(ctx, query, database.MapsToNamedArgsMap(args))
+	row, err := r.db.NamedQueryContext(ctx, query, database.SetMapSqlNamed(args))
 	if err != nil {
 		return fmt.Errorf("failed to create user: %w", err)
 	}
@@ -56,7 +56,7 @@ func (r *userRepository) GetByID(ctx context.Context, id int64) (*model.User, er
 		"id": id,
 	}
 
-	row, err := r.db.NamedQueryContext(ctx, query, database.MapsToNamedArgsMap(args))
+	row, err := r.db.NamedQueryContext(ctx, query, database.SetMapSqlNamed(args))
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("user not found")
@@ -83,7 +83,7 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*model.U
 		"email": email,
 	}
 
-	row, err := r.db.NamedQueryContext(ctx, query, database.MapsToNamedArgsMap(args))
+	row, err := r.db.NamedQueryContext(ctx, query, database.SetMapSqlNamed(args))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
@@ -114,7 +114,7 @@ func (r *userRepository) GetAll(ctx context.Context, limit, offset int) ([]model
 		"offset": offset,
 	}
 
-	rows, err := r.db.NamedQueryContext(ctx, query, database.MapsToNamedArgsMap(args))
+	rows, err := r.db.NamedQueryContext(ctx, query, database.SetMapSqlNamed(args))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get users: %w", err)
 	}
@@ -141,7 +141,7 @@ func (r *userRepository) Update(ctx context.Context, user *model.User) error {
 		"id":    user.ID,
 	}
 
-	row, err := r.db.NamedQueryContext(ctx, query, database.MapsToNamedArgsMap(args))
+	row, err := r.db.NamedQueryContext(ctx, query, database.SetMapSqlNamed(args))
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return fmt.Errorf("user not found")
@@ -163,7 +163,7 @@ func (r *userRepository) Delete(ctx context.Context, id int64) error {
 		"id": id,
 	}
 
-	result, err := r.db.NamedExecContext(ctx, query, database.MapsToNamedArgsMap(args))
+	result, err := r.db.NamedExecContext(ctx, query, database.SetMapSqlNamed(args))
 	if err != nil {
 		return fmt.Errorf("failed to delete user: %w", err)
 	}

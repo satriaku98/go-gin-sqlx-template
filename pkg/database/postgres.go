@@ -68,7 +68,7 @@ func (d *Database) HealthCheck() error {
 	return d.DB.Ping()
 }
 
-func MapsToNamedArgsMap(args map[string]any) map[string]any {
+func SetMapSqlNamed(args map[string]any) map[string]any {
 	m := make(map[string]any, len(args))
 	for k, v := range args {
 		m[k] = sql.Named(k, v)
