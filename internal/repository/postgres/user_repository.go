@@ -148,7 +148,12 @@ func (r *userRepository) Update(ctx context.Context, user *model.User) error {
 		}
 		return fmt.Errorf("failed to update user: %w", err)
 	}
-	err = row.Scan(&user.UpdatedAt)
+
+	if !row.Next() {
+		return fmt.Errorf("user not found")
+	}
+
+	err = row.StructScan(&user)
 	if err != nil {
 		return fmt.Errorf("failed to scan updated user: %w", err)
 	}
