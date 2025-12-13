@@ -66,11 +66,13 @@ func (r *userRepository) GetByID(ctx context.Context, id int64) (*model.User, er
 	}
 	defer row.Close()
 
-	if row.Next() {
-		err = row.StructScan(&user)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan user: %w", err)
-		}
+	if !row.Next() {
+		return nil, fmt.Errorf("user not found")
+	}
+
+	err = row.StructScan(&user)
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan user: %w", err)
 	}
 
 	return &user, nil
@@ -105,27 +107,27 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*model.U
 func (r *userRepository) GetAll(ctx context.Context, limit, offset int, filters utils.FilterParams) ([]model.User, error) {
 	var users []model.User
 
-	// Build WHERE clause based on filters
-	whereClauses := []string{}
 	args := map[string]any{
 		"limit":  limit,
 		"offset": offset,
 	}
 
+	qb := utils.NewQueryBuilder("SELECT id, email, name, password, created_at, updated_at FROM users")
+
 	if name, ok := filters.Get("name"); ok {
-		whereClauses = append(whereClauses, "name ILIKE :name")
+		qb.AddWhere("name ILIKE :name")
 		args["name"] = "%" + name + "%"
 	}
 
 	if email, ok := filters.Get("email"); ok {
-		whereClauses = append(whereClauses, "email ILIKE :email")
+		qb.AddWhere("email ILIKE :email")
 		args["email"] = "%" + email + "%"
 	}
 
-	// Build query
-	query := `SELECT id, email, name, password, created_at, updated_at FROM users`
-	query += utils.BuildWhereClause(whereClauses)
-	query += ` ORDER BY created_at DESC LIMIT :limit OFFSET :offset`
+	qb.SetOrderBy("ORDER BY created_at DESC")
+	qb.SetLimitOffset("LIMIT :limit", "OFFSET :offset")
+
+	query := qb.Build()
 
 	rows, err := r.db.NamedQueryContext(ctx, query, database.SetMapSqlNamed(args))
 	if err != nil {
@@ -201,23 +203,21 @@ func (r *userRepository) Delete(ctx context.Context, id int64) error {
 func (r *userRepository) Count(ctx context.Context, filters utils.FilterParams) (int64, error) {
 	var count int64
 
-	// Build WHERE clause based on filters
-	whereClauses := []string{}
 	args := map[string]any{}
 
+	qb := utils.NewQueryBuilder("SELECT COUNT(*) FROM users")
+
 	if name, ok := filters.Get("name"); ok {
-		whereClauses = append(whereClauses, "name ILIKE :name")
+		qb.AddWhere("name ILIKE :name")
 		args["name"] = "%" + name + "%"
 	}
 
 	if email, ok := filters.Get("email"); ok {
-		whereClauses = append(whereClauses, "email ILIKE :email")
+		qb.AddWhere("email ILIKE :email")
 		args["email"] = "%" + email + "%"
 	}
 
-	// Build query
-	query := `SELECT COUNT(*) FROM users`
-	query += utils.BuildWhereClause(whereClauses)
+	query := qb.Build()
 
 	if len(args) > 0 {
 		// Use NamedQuery for parameterized query
