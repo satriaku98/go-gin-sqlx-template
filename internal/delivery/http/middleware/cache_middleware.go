@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"go-gin-sqlx-template/pkg/database"
+	"go-gin-sqlx-template/pkg/logger"
 
 	"github.com/gin-gonic/gin"
 )
@@ -22,7 +23,12 @@ func (r responseBodyWriter) Write(b []byte) (int, error) {
 	return r.ResponseWriter.Write(b)
 }
 
-func CacheMiddleware(redisClient *database.RedisClient, ttl time.Duration) gin.HandlerFunc {
+func (r responseBodyWriter) WriteString(s string) (int, error) {
+	r.body.WriteString(s)
+	return r.ResponseWriter.WriteString(s)
+}
+
+func CacheMiddleware(redisClient *database.RedisClient, ttl time.Duration, logger *logger.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Only cache GET requests
 		if c.Request.Method != http.MethodGet {
@@ -51,7 +57,9 @@ func CacheMiddleware(redisClient *database.RedisClient, ttl time.Duration) gin.H
 
 		// Save to cache if status is 200
 		if c.Writer.Status() == http.StatusOK {
-			redisClient.Client.Set(ctx, key, w.body.String(), ttl)
+			if err := redisClient.Client.Set(ctx, key, w.body.String(), ttl).Err(); err != nil {
+				logger.Errorf(c.Request.Context(), "failed to cache response: %v", err)
+			}
 		}
 	}
 }

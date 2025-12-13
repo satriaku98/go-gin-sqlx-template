@@ -59,7 +59,7 @@ func (r *Router) Setup() *gin.Engine {
 		{
 			users.POST("", r.userHandler.CreateUser)
 			users.GET("", r.userHandler.GetAllUsers)
-			users.GET("/:id", r.userHandler.GetUserByID, middleware.CacheMiddleware(r.redisClient, 1*time.Minute))
+			users.GET("/:id", middleware.CacheMiddleware(r.redisClient, 1*time.Minute, r.logger), r.userHandler.GetUserByID)
 			users.PUT("/:id", r.userHandler.UpdateUser)
 			users.DELETE("/:id", r.userHandler.DeleteUser)
 		}

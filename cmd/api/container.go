@@ -45,7 +45,7 @@ func NewContainer(cfg config.Config, log *logger.Logger, db *database.Database) 
 	userUsecase := impl.NewUserUsecase(userRepo, asynqClient, cfg, log)
 
 	// Handler layer
-	userHandler := handler.NewUserHandler(userUsecase)
+	userHandler := handler.NewUserHandler(userUsecase, redisClient)
 
 	// Router
 	r := router.NewRouter(userHandler, log, db, redisClient, cfg)
