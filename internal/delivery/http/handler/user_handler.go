@@ -95,11 +95,36 @@ func (h *UserHandler) GetUserByID(c *gin.Context) {
 // @Failure      400  {object}  utils.Response
 // @Failure      500  {object}  utils.Response
 // @Router       /users [get]
-var getAllUsersAllowedFilters = []string{"name", "email"}
+var (
+	// getAllUsersAllowedFilters defines which filters are allowed for GetAllUsers
+	// only allow name and email
+	getAllUsersAllowedFilters = []string{"name", "email"}
+	
+	// sort by id, email, name, created_at, updated_at
+	// default sort by created_at desc
+	// example: ?sort=id,desc&sort=name,asc
+	getAllUsersAllowedSorts   = map[string]string{
+		"id":         "id",
+		"email":      "email",
+		"name":       "name",
+		"created_at": "created_at",
+		"updated_at": "updated_at",
+	}
+	getAllUsersDefaultSorts = []utils.SortParams{
+		{Field: "created_at", Direction: "desc"},
+	}
+)
 
 func (h *UserHandler) GetAllUsers(c *gin.Context) {
 	// Parse pagination parameters
 	pagination := utils.ParsePagination(c)
+
+	// Parse sort parameters
+	sort, err := utils.ParseSorts(c, getAllUsersAllowedSorts, getAllUsersDefaultSorts)
+	if err != nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, "Invalid sort parameters", err)
+		return
+	}
 
 	// Parse filter parameters (only allow name and email)
 	filters, err := utils.ParseFilters(c, getAllUsersAllowedFilters)
@@ -113,6 +138,7 @@ func (h *UserHandler) GetAllUsers(c *gin.Context) {
 		c.Request.Context(),
 		pagination,
 		filters,
+		sort,
 	)
 	if err != nil {
 		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to get users", err)

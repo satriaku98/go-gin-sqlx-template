@@ -35,6 +35,9 @@ func ParseFilters(c *gin.Context, allowedParams []string) (FilterParams, error) 
 	allowedMap["page"] = true
 	allowedMap["limit"] = true
 
+	// Add "sort" to allowed params
+	allowedMap["sort"] = true
+
 	// Check all query parameters
 	invalidParams := []string{}
 	queryParams := c.Request.URL.Query()

@@ -90,7 +90,7 @@ func (u *userUsecase) GetUserByID(ctx context.Context, id int64) (*model.UserRes
 	return &response, nil
 }
 
-func (u *userUsecase) GetAllUsers(ctx context.Context, pagination utils.PaginationParams, filters utils.FilterParams) ([]model.UserResponse, int64, error) {
+func (u *userUsecase) GetAllUsers(ctx context.Context, pagination utils.PaginationParams, filters utils.FilterParams, sort []utils.SortParams) ([]model.UserResponse, int64, error) {
 	var (
 		users []model.User
 		total int64
@@ -101,7 +101,7 @@ func (u *userUsecase) GetAllUsers(ctx context.Context, pagination utils.Paginati
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		users, err = u.userRepo.GetAll(ctx, pagination.Limit, pagination.Offset, filters)
+		users, err = u.userRepo.GetAll(ctx, pagination, filters, sort)
 		return err
 	})
 

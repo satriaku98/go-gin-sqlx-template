@@ -51,7 +51,7 @@ func (r *userRepository) Create(ctx context.Context, user *model.User) error {
 
 func (r *userRepository) GetByID(ctx context.Context, id int64) (*model.User, error) {
 	var user model.User
-	query := `SELECT id, email, name, password, created_at, updated_at FROM users WHERE id = :id`
+	query := `SELECT id, email, name, created_at, updated_at FROM users WHERE id = :id`
 
 	args := map[string]any{
 		"id": id,
@@ -80,7 +80,7 @@ func (r *userRepository) GetByID(ctx context.Context, id int64) (*model.User, er
 
 func (r *userRepository) GetByEmail(ctx context.Context, email string) (*model.User, error) {
 	var user model.User
-	query := `SELECT id, email, name, password, created_at, updated_at FROM users WHERE email = :email`
+	query := `SELECT id, email, name, created_at, updated_at FROM users WHERE email = :email`
 
 	args := map[string]any{
 		"email": email,
@@ -104,15 +104,15 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*model.U
 	return &user, nil
 }
 
-func (r *userRepository) GetAll(ctx context.Context, limit, offset int, filters utils.FilterParams) ([]model.User, error) {
+func (r *userRepository) GetAll(ctx context.Context, pagination utils.PaginationParams, filters utils.FilterParams, sort []utils.SortParams) ([]model.User, error) {
 	var users []model.User
 
 	args := map[string]any{
-		"limit":  limit,
-		"offset": offset,
+		"limit":  pagination.Limit,
+		"offset": pagination.Offset,
 	}
 
-	qb := utils.NewQueryBuilder("SELECT id, email, name, password, created_at, updated_at FROM users")
+	qb := utils.NewQueryBuilder("SELECT id, email, name, created_at, updated_at FROM users")
 
 	if name, ok := filters.Get("name"); ok {
 		qb.AddWhere("name ILIKE :name")
@@ -124,7 +124,7 @@ func (r *userRepository) GetAll(ctx context.Context, limit, offset int, filters 
 		args["email"] = "%" + email + "%"
 	}
 
-	qb.SetOrderBy("ORDER BY created_at DESC")
+	qb.SetOrderBy(sort)
 	qb.SetLimitOffset("LIMIT :limit", "OFFSET :offset")
 
 	query := qb.Build()

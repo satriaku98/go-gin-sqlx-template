@@ -28,17 +28,18 @@ func (qb *QueryBuilder) AddWhere(condition string) *QueryBuilder {
 	return qb
 }
 
-// AddWhereIf adds a WHERE clause condition only if the condition is met
-func (qb *QueryBuilder) AddWhereIf(shouldAdd bool, condition string) *QueryBuilder {
-	if shouldAdd && condition != "" {
-		qb.whereClauses = append(qb.whereClauses, condition)
-	}
-	return qb
-}
-
 // SetOrderBy sets the ORDER BY clause
-func (qb *QueryBuilder) SetOrderBy(orderBy string) *QueryBuilder {
-	qb.orderBy = orderBy
+func (qb *QueryBuilder) SetOrderBy(sorts []SortParams) *QueryBuilder {
+	if len(sorts) == 0 {
+		return qb
+	}
+
+	clauses := make([]string, 0, len(sorts))
+	for _, s := range sorts {
+		clauses = append(clauses, s.Field+" "+strings.ToUpper(s.Direction))
+	}
+
+	qb.orderBy = "ORDER BY " + strings.Join(clauses, ", ")
 	return qb
 }
 
@@ -68,21 +69,4 @@ func (qb *QueryBuilder) Build() string {
 	}
 
 	return query
-}
-
-// BuildWhereClause is a simple helper to build WHERE clause from conditions
-// Returns empty string if no conditions, otherwise returns " WHERE condition1 AND condition2"
-func BuildWhereClause(conditions []string) string {
-	if len(conditions) == 0 {
-		return ""
-	}
-	return " WHERE " + strings.Join(conditions, " AND ")
-}
-
-// BuildWhereClauseOr builds WHERE clause with OR operator
-func BuildWhereClauseOr(conditions []string) string {
-	if len(conditions) == 0 {
-		return ""
-	}
-	return " WHERE " + strings.Join(conditions, " OR ")
 }
