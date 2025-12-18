@@ -16,6 +16,9 @@ A production-ready REST API template built with Go, Gin web framework, and SQLX 
 - ✅ **CORS Support**: Cross-origin resource sharing middleware
 - ✅ **Request Logging**: HTTP request/response logging
 - ✅ **Panic Recovery**: Automatic recovery from panics
+- ✅ **Background Worker**: Asynchronous task processing with Asynq
+- ✅ **OpenTelemetry**: Distributed tracing and metrics
+- ✅ **Swagger Docs**: Auto-generated API documentation
 
 ## Project Structure
 
@@ -58,6 +61,7 @@ A production-ready REST API template built with Go, Gin web framework, and SQLX 
 
 - Go 1.25.2 or higher
 - PostgreSQL 12 or higher
+- Redis 6 or higher
 - golang-migrate CLI (for running migrations)
 
 ## Installation
@@ -98,8 +102,13 @@ migrate -path migrations -database "postgresql://postgres:postgres@localhost:543
 ```bash
 go run cmd/api/main.go
 ```
-
 The server will start on `http://localhost:8080` (or the port specified in your `.env` file).
+
+### Running the Worker
+
+```bash
+go run cmd/worker/main.go
+```
 
 ## API Endpoints
 
@@ -161,6 +170,13 @@ Configuration is managed through environment variables in the `.env` file:
 | `DB_USER` | PostgreSQL user | `postgres` |
 | `DB_PASSWORD` | PostgreSQL password | `postgres` |
 | `DB_NAME` | PostgreSQL database name | `go_gin_sqlx_db` |
+| `REDIS_HOST` | Redis host | `localhost` |
+| `REDIS_PORT` | Redis port | `6379` |
+| `REDIS_PASSWORD` | Redis password | `` |
+| `REDIS_DB` | Redis DB index | `0` |
+| `WORKER_NAME` | Name for the worker instance | `go-gin-worker` |
+| `TELEGRAM_TOKEN` | Telegram Bot Token | `` |
+| `TELEGRAM_CHAT_ID` | Telegram Chat ID | `` |
 
 ## Database Migrations
 
@@ -195,6 +211,18 @@ Handler → Usecase → Repository → Database
 ```
 
 Dependencies are manually injected in `cmd/api/main.go` for better control and testability.
+
+### Background Worker
+The project uses [Asynq](https://github.com/hibiken/asynq) for background task processing.
+- **Entry Point**: `cmd/worker/main.go`
+- **Task Handlers**: `internal/worker/`
+- **Task Definitions**: `internal/worker/tasks.go`
+
+### Telemetry
+OpenTelemetry is integrated for tracing.
+- **Setup**: `pkg/telemetry/`
+- **Middleware**: `otelgin` middleware is used in `internal/delivery/http/router/router.go`.
+- **Worker**: Tracing is propagated to background tasks.
 
 ## Development
 
