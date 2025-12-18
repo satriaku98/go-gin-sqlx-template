@@ -6,12 +6,14 @@ import (
 	"go-gin-sqlx-template/config"
 	"go-gin-sqlx-template/internal/delivery/http/handler"
 	"go-gin-sqlx-template/internal/delivery/http/router"
+	"go-gin-sqlx-template/internal/integration/pubsub"
 	"go-gin-sqlx-template/internal/repository/postgres"
 	"go-gin-sqlx-template/internal/usecase/impl"
 	"go-gin-sqlx-template/pkg/database"
 	"go-gin-sqlx-template/pkg/logger"
 
 	"github.com/hibiken/asynq"
+	"google.golang.org/api/option"
 )
 
 // Container holds all application dependencies
@@ -31,8 +33,11 @@ func NewContainer(cfg config.Config, log *logger.Logger, db *database.Database) 
 		log.Errorf(context.Background(), "Failed to connect to Redis: %v", err)
 	}
 
-	// Repository layer
-	userRepo := postgres.NewUserRepository(db.DB)
+	// Initialize PubSub Client
+	pubsubClient, err := pubsub.NewClient(context.Background(), cfg.PubSubProjectID, option.WithCredentialsFile(cfg.PubSubCredsFile))
+	if err != nil {
+		log.Errorf(context.Background(), "Failed to connect to PubSub: %v", err)
+	}
 
 	// Initialize Asynq Client
 	asynqClient := asynq.NewClient(asynq.RedisClientOpt{
@@ -41,8 +46,11 @@ func NewContainer(cfg config.Config, log *logger.Logger, db *database.Database) 
 		DB:       cfg.RedisDB,
 	})
 
+	// Repository layer
+	userRepo := postgres.NewUserRepository(db.DB)
+
 	// Usecase layer
-	userUsecase := impl.NewUserUsecase(userRepo, asynqClient, cfg, log)
+	userUsecase := impl.NewUserUsecase(userRepo, asynqClient, pubsubClient, cfg, log)
 
 	// Handler layer
 	userHandler := handler.NewUserHandler(userUsecase, redisClient)

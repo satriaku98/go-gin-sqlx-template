@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"go-gin-sqlx-template/config"
+	ps "go-gin-sqlx-template/internal/integration/pubsub"
 	"go-gin-sqlx-template/internal/model"
 	"go-gin-sqlx-template/internal/repository"
 	"go-gin-sqlx-template/internal/usecase"
@@ -18,23 +19,26 @@ import (
 )
 
 type userUsecase struct {
-	userRepo    repository.UserRepository
-	asynqClient *asynq.Client
-	config      config.Config
-	logger      *logger.Logger
+	userRepo     repository.UserRepository
+	asynqClient  *asynq.Client
+	pubsubClient *ps.Client
+	config       config.Config
+	logger       *logger.Logger
 }
 
 func NewUserUsecase(
 	userRepo repository.UserRepository,
 	asynqClient *asynq.Client,
+	pubsubClient *ps.Client,
 	cfg config.Config,
 	log *logger.Logger,
 ) usecase.UserUsecase {
 	return &userUsecase{
-		userRepo:    userRepo,
-		asynqClient: asynqClient,
-		config:      cfg,
-		logger:      log,
+		userRepo:     userRepo,
+		asynqClient:  asynqClient,
+		pubsubClient: pubsubClient,
+		config:       cfg,
+		logger:       log,
 	}
 }
 
@@ -60,6 +64,14 @@ func (u *userUsecase) CreateUser(ctx context.Context, req model.CreateUserReques
 	err = u.userRepo.Create(ctx, user)
 	if err != nil {
 		return nil, err
+	}
+
+	// Send PubSub message
+	message := fmt.Sprintf("New user created: %s (%s)", user.Name, user.Email)
+	if id, err := u.pubsubClient.Publish(ctx, ps.TopicUserCreated, []byte(message), nil); err != nil {
+		u.logger.Errorf(ctx, "Failed to publish pubsub message: %v", err)
+	} else {
+		u.logger.Infof(ctx, "Published message: id=%s", id)
 	}
 
 	// Send Telegram message with asynq task
