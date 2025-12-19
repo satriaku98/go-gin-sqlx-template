@@ -8,6 +8,10 @@ import (
 
 	"cloud.google.com/go/pubsub/v2"
 	"cloud.google.com/go/pubsub/v2/apiv1/pubsubpb"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/propagation"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -29,7 +33,21 @@ func NewClient(cfg config.Config) (*Client, error) {
 		return nil, fmt.Errorf("PUBSUB_PROJECT_ID is not set in config")
 	}
 
-	options := []option.ClientOption{}
+	dialOpts := []grpc.DialOption{
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+	}
+
+	if cfg.PubSubEmulatorHost != "" {
+		dialOpts = append(dialOpts,
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+		)
+	}
+
+	var options []option.ClientOption
+	for _, opt := range dialOpts {
+		options = append(options, option.WithGRPCDialOption(opt))
+	}
+
 	if cfg.PubSubCredsFile != "" {
 		options = append(options, option.WithCredentialsFile(cfg.PubSubCredsFile))
 	}
@@ -37,7 +55,6 @@ func NewClient(cfg config.Config) (*Client, error) {
 		options = append(options,
 			option.WithEndpoint(cfg.PubSubEmulatorHost),
 			option.WithoutAuthentication(),
-			option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())),
 		)
 	}
 
@@ -146,6 +163,21 @@ func (c *Client) Publish(
 
 	p := c.publisher(topicID)
 
+	// Inject trace context
+	if attrs == nil {
+		attrs = make(map[string]string)
+	}
+	otel.GetTextMapPropagator().Inject(ctx, propagation.MapCarrier(attrs))
+
+	tr := otel.Tracer("pubsub")
+	ctx, span := tr.Start(ctx, "publish "+topicID)
+	span.SetAttributes(
+		attribute.String("topic_id", topicID),
+		attribute.String("data", string(data)),
+		attribute.String("attributes", fmt.Sprintf("%v", attrs)),
+	)
+	defer span.End()
+
 	result := p.Publish(ctx, &pubsub.Message{
 		Data:       data,
 		Attributes: attrs,
@@ -178,6 +210,20 @@ func (c *Client) Subscribe(
 	}
 
 	err := s.Receive(ctx, func(ctx context.Context, msg *pubsub.Message) {
+		if msg.Attributes != nil {
+			carrier := propagation.MapCarrier(msg.Attributes)
+			ctx = otel.GetTextMapPropagator().Extract(ctx, carrier)
+		}
+
+		tr := otel.Tracer("pubsub")
+		ctx, span := tr.Start(ctx, "receive "+subscriptionID)
+		span.SetAttributes(
+			attribute.String("subscription_id", subscriptionID),
+			attribute.String("data", string(msg.Data)),
+			attribute.String("attributes", fmt.Sprintf("%v", msg.Attributes)),
+		)
+		defer span.End()
+
 		if err := handler(ctx, msg); err != nil {
 			msg.Nack()
 			return
