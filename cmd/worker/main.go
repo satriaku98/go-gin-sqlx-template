@@ -11,11 +11,17 @@ import (
 	ps "go-gin-sqlx-template/pkg/pubsub"
 	"go-gin-sqlx-template/pkg/telemetry"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/hibiken/asynq"
 )
 
 func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	// Load Config
 	cfg, err := config.LoadConfig(".")
 	if err != nil {
@@ -24,7 +30,13 @@ func main() {
 
 	// Init Logger
 	loggerInstance := logger.NewLogger()
-	loggerInstance.Info(context.Background(), "Starting Asynq Worker...")
+	loggerInstance.Info(ctx, "Starting Asynq Worker...")
+
+	defer func() {
+		if r := recover(); r != nil {
+			loggerInstance.Error(context.Background(), "panic recovered in main", r)
+		}
+	}()
 
 	// Init Redis Config for Asynq
 	redisOpt := asynq.RedisClientOpt{
@@ -37,7 +49,7 @@ func main() {
 	telemetry.InitTracer(cfg, cfg.WorkerName)
 
 	// Init PubSub Worker
-	pubsubWorker(cfg, loggerInstance)
+	pubsubClient := pubsubWorker(ctx, cfg, loggerInstance)
 
 	// Init Asynq Server
 	srv := asynq.NewServer(
@@ -65,12 +77,23 @@ func main() {
 
 	// Run Worker
 	loggerInstance.Info(context.Background(), "Worker server starting...")
-	if err := srv.Run(mux); err != nil {
-		loggerInstance.Fatalf(context.Background(), "could not run server: %v", err)
+
+	go func() {
+		if err := srv.Run(mux); err != nil {
+			loggerInstance.Errorf(context.Background(), "asynq stopped: %v", err)
+		}
+	}()
+
+	<-ctx.Done()
+	loggerInstance.Info(context.Background(), "shutdown signal received")
+
+	srv.Shutdown()
+	if pubsubClient != nil {
+		pubsubClient.Close()
 	}
 }
 
-func pubsubWorker(cfg config.Config, loggerInstance *logger.Logger) {
+func pubsubWorker(ctx context.Context, cfg config.Config, loggerInstance *logger.Logger) *ps.Client {
 	pubsubClient, err := ps.NewClient(cfg)
 	if err != nil {
 		loggerInstance.Fatalf(context.Background(), "Failed to create pubsub client: %v", err)
@@ -82,10 +105,11 @@ func pubsubWorker(cfg config.Config, loggerInstance *logger.Logger) {
 
 	worker := pubsubworker.New(pubsubClient, loggerInstance)
 
-	ctx := context.Background()
 	worker.Start(
 		ctx,
 		worker.SubscribeUserCreated(ctx, cfg.PubSubSubscriptionUserCreated),
 		// add more subscription here
 	)
+
+	return pubsubClient
 }

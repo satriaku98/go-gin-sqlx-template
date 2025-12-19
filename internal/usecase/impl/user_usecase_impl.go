@@ -66,6 +66,11 @@ func (u *userUsecase) CreateUser(ctx context.Context, req model.CreateUserReques
 		return nil, err
 	}
 
+	// NOTE:
+	// This is only an example to show both Pub/Sub and Asynq usage.
+	// In production, consider using only one of them based on your needs
+	// to avoid duplicated async handling.
+
 	// Send PubSub message
 	message := fmt.Sprintf("New user created: %s (%s)", user.Name, user.Email)
 	if id, err := u.pubsubClient.Publish(ctx, u.config.PubSubTopicUserCreated, []byte(message), nil); err != nil {
