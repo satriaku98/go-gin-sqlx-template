@@ -51,10 +51,11 @@ func NewContainer(cfg config.Config, log *logger.Logger, db *database.Database) 
 	})
 
 	// Repository layer
-	userRepo := postgres.NewUserRepository(db.DB)
+	txManager := db.NewTransactionManager()
+	userRepo := postgres.NewUserRepository(db.DB, txManager)
 
 	// Usecase layer
-	userUsecase := impl.NewUserUsecase(userRepo, asynqClient, pubsubClient, cfg, log)
+	userUsecase := impl.NewUserUsecase(userRepo, txManager, asynqClient, pubsubClient, cfg, log)
 
 	// Handler layer
 	userHandler := handler.NewUserHandler(userUsecase, redisClient)

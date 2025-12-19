@@ -14,11 +14,23 @@ import (
 )
 
 type userRepository struct {
-	db *sqlx.DB
+	db         *sqlx.DB
+	transactor database.Transactor
 }
 
-func NewUserRepository(db *sqlx.DB) repository.UserRepository {
-	return &userRepository{db: db}
+func NewUserRepository(db *sqlx.DB, transactor database.Transactor) repository.UserRepository {
+	return &userRepository{
+		db:         db,
+		transactor: transactor,
+	}
+}
+
+// getExecutor returns the appropriate executor (DB or TX) from context
+func (r *userRepository) getExecutor(ctx context.Context) sqlx.ExtContext {
+	if r.transactor != nil {
+		return r.transactor.GetExecutor(ctx)
+	}
+	return r.db
 }
 
 func (r *userRepository) Create(ctx context.Context, user *model.User) error {
@@ -33,7 +45,7 @@ func (r *userRepository) Create(ctx context.Context, user *model.User) error {
 		"password": user.Password,
 	}
 
-	row, err := r.db.NamedQueryContext(ctx, query, database.SetMapSqlNamed(args))
+	row, err := sqlx.NamedQueryContext(ctx, r.getExecutor(ctx), query, database.SetMapSqlNamed(args))
 	if err != nil {
 		return fmt.Errorf("failed to create user: %w", err)
 	}
@@ -57,7 +69,7 @@ func (r *userRepository) GetByID(ctx context.Context, id int64) (*model.User, er
 		"id": id,
 	}
 
-	row, err := r.db.NamedQueryContext(ctx, query, database.SetMapSqlNamed(args))
+	row, err := sqlx.NamedQueryContext(ctx, r.getExecutor(ctx), query, database.SetMapSqlNamed(args))
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("user not found")
@@ -86,7 +98,7 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*model.U
 		"email": email,
 	}
 
-	row, err := r.db.NamedQueryContext(ctx, query, database.SetMapSqlNamed(args))
+	row, err := sqlx.NamedQueryContext(ctx, r.getExecutor(ctx), query, database.SetMapSqlNamed(args))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
@@ -129,7 +141,7 @@ func (r *userRepository) GetAll(ctx context.Context, pagination utils.Pagination
 
 	query := qb.Build()
 
-	rows, err := r.db.NamedQueryContext(ctx, query, database.SetMapSqlNamed(args))
+	rows, err := sqlx.NamedQueryContext(ctx, r.getExecutor(ctx), query, database.SetMapSqlNamed(args))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get users: %w", err)
 	}
@@ -156,7 +168,7 @@ func (r *userRepository) Update(ctx context.Context, user *model.User) error {
 		"id":    user.ID,
 	}
 
-	row, err := r.db.NamedQueryContext(ctx, query, database.SetMapSqlNamed(args))
+	row, err := sqlx.NamedQueryContext(ctx, r.getExecutor(ctx), query, database.SetMapSqlNamed(args))
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return fmt.Errorf("user not found")
@@ -183,7 +195,7 @@ func (r *userRepository) Delete(ctx context.Context, id int64) error {
 		"id": id,
 	}
 
-	result, err := r.db.NamedExecContext(ctx, query, database.SetMapSqlNamed(args))
+	result, err := sqlx.NamedExecContext(ctx, r.getExecutor(ctx), query, database.SetMapSqlNamed(args))
 	if err != nil {
 		return fmt.Errorf("failed to delete user: %w", err)
 	}
@@ -221,7 +233,7 @@ func (r *userRepository) Count(ctx context.Context, filters utils.FilterParams) 
 
 	if len(args) > 0 {
 		// Use NamedQuery for parameterized query
-		rows, err := r.db.NamedQueryContext(ctx, query, database.SetMapSqlNamed(args))
+		rows, err := sqlx.NamedQueryContext(ctx, r.getExecutor(ctx), query, database.SetMapSqlNamed(args))
 		if err != nil {
 			return 0, fmt.Errorf("failed to count users: %w", err)
 		}
@@ -235,7 +247,7 @@ func (r *userRepository) Count(ctx context.Context, filters utils.FilterParams) 
 		}
 	} else {
 		// No filters, use simple query
-		err := r.db.GetContext(ctx, &count, query)
+		err := sqlx.GetContext(ctx, r.getExecutor(ctx), &count, query)
 		if err != nil {
 			return 0, fmt.Errorf("failed to count users: %w", err)
 		}
