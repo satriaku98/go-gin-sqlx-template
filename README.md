@@ -17,6 +17,7 @@ A production-ready REST API template built with Go, Gin web framework, and SQLX 
 - ✅ **Request Logging**: HTTP request/response logging
 - ✅ **Panic Recovery**: Automatic recovery from panics
 - ✅ **Background Worker**: Asynchronous task processing with Asynq
+- ✅ **Pub/Sub Support**: Google Pub/Sub integration
 - ✅ **OpenTelemetry**: Distributed tracing and metrics
 - ✅ **Swagger Docs**: Auto-generated API documentation
 
@@ -26,35 +27,42 @@ A production-ready REST API template built with Go, Gin web framework, and SQLX 
 .
 ├── cmd/
 │   ├── api/
-│   │   └── main.go              # Application entry point
+│   │   └── main.go                 # Application entry point
+│   ├── pubsub_example/
+│   │   └── main.go                 # PubSub example entry point
 │   └── worker/
-│       └── main.go              # Worker entry point
+│       └── main.go                 # Worker entry point
 ├── config/
-│   └── config.go                # Configuration management
+│   └── config.go                   # Configuration management
 ├── internal/
 │   ├── delivery/
 │   │   └── http/
-│   │       ├── handler/         # HTTP handlers
-│   │       ├── middleware/      # HTTP middleware
-│   │       └── router/          # Route definitions
-│   ├── integration/             # External service adapters (e.g. Telegram)
-│   ├── model/                   # Domain models and DTOs
-│   ├── repository/              # Data access layer
-│   │   └── postgres/            # PostgreSQL implementations
-│   ├── usecase/                 # Business logic layer
-│   │   └── impl/                # Usecase implementations
-│   └── worker/                  # Worker service
-│       ├── processor.go         # Task processor
-│       └── tasks.go             # Task definitions
+│   │       ├── handler/            # HTTP handlers
+│   │       ├── middleware/         # HTTP middleware
+│   │       └── router/             # Route definitions
+│   ├── integration/                # External service adapters (e.g. Telegram)
+│   ├── model/                      # Domain models and DTOs
+│   ├── repository/                 # Data access layer
+│   │   └── postgres/               # PostgreSQL implementations
+│   ├── usecase/                    # Business logic layer
+│   │   └── impl/                   # Usecase implementations
+│   └── worker/                     # Worker service
+│       ├── pubsub/                 # PubSub worker implementation
+│       │   ├── pubsub_handler.go   # PubSub message handlers
+│       │   └── worker.go           # PubSub worker engine
+│       ├── tasks.go                # Task definitions
+│       ├── telegram_handler.go     # Telegram handler
+│       └── telegram_task.go        # Telegram task
 ├── pkg/
-│   ├── database/                # Database connection
-│   ├── logger/                  # Logging utility
-│   ├── telemetry/               # OpenTelemetry setup
-│   └── utils/                   # Utility functions
-├── migrations/                  # Database migrations
-├── .env                         # Environment variables
-├── go.mod                       # Go module definition
-└── README.md                    # This file
+│   ├── database/                   # Database connection
+│   ├── logger/                     # Logging utility
+│   ├── pubsub/                     # PubSub client
+│   ├── telemetry/                  # OpenTelemetry setup
+│   └── utils/                      # Utility functions
+├── migrations/                     # Database migrations
+├── .env                            # Environment variables
+├── go.mod                          # Go module definition
+└── README.md                       # This file
 ```
 
 ## Prerequisites

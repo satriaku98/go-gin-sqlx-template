@@ -6,14 +6,13 @@ import (
 	"go-gin-sqlx-template/config"
 	"go-gin-sqlx-template/internal/delivery/http/handler"
 	"go-gin-sqlx-template/internal/delivery/http/router"
-	"go-gin-sqlx-template/internal/integration/pubsub"
 	"go-gin-sqlx-template/internal/repository/postgres"
 	"go-gin-sqlx-template/internal/usecase/impl"
 	"go-gin-sqlx-template/pkg/database"
 	"go-gin-sqlx-template/pkg/logger"
+	"go-gin-sqlx-template/pkg/pubsub"
 
 	"github.com/hibiken/asynq"
-	"google.golang.org/api/option"
 )
 
 // Container holds all application dependencies
@@ -34,9 +33,14 @@ func NewContainer(cfg config.Config, log *logger.Logger, db *database.Database) 
 	}
 
 	// Initialize PubSub Client
-	pubsubClient, err := pubsub.NewClient(context.Background(), cfg.PubSubProjectID, option.WithCredentialsFile(cfg.PubSubCredsFile))
+	pubsubClient, err := pubsub.NewClient(cfg)
 	if err != nil {
-		log.Errorf(context.Background(), "Failed to connect to PubSub: %v", err)
+		log.Errorf(context.Background(), "Failed to create pubsub client: %v", err)
+	}
+
+	// Ensure all topics and subscriptions exist
+	if err := pubsubClient.EnsureAll(context.Background(), pubsub.GetTopicConfig(cfg)); err != nil {
+		log.Errorf(context.Background(), "Failed to ensure pubsub topics and subscriptions: %v", err)
 	}
 
 	// Initialize Asynq Client

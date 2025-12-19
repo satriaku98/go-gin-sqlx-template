@@ -6,7 +6,9 @@ import (
 	"go-gin-sqlx-template/config"
 	"go-gin-sqlx-template/internal/integration/telegram"
 	"go-gin-sqlx-template/internal/worker"
+	pubsubworker "go-gin-sqlx-template/internal/worker/pubsub"
 	"go-gin-sqlx-template/pkg/logger"
+	ps "go-gin-sqlx-template/pkg/pubsub"
 	"go-gin-sqlx-template/pkg/telemetry"
 	"log"
 
@@ -33,6 +35,9 @@ func main() {
 
 	// Init Opentelemetry
 	telemetry.InitTracer(cfg, cfg.WorkerName)
+
+	// Init PubSub Worker
+	pubsubWorker(cfg, loggerInstance)
 
 	// Init Asynq Server
 	srv := asynq.NewServer(
@@ -63,4 +68,24 @@ func main() {
 	if err := srv.Run(mux); err != nil {
 		loggerInstance.Fatalf(context.Background(), "could not run server: %v", err)
 	}
+}
+
+func pubsubWorker(cfg config.Config, loggerInstance *logger.Logger) {
+	pubsubClient, err := ps.NewClient(cfg)
+	if err != nil {
+		loggerInstance.Fatalf(context.Background(), "Failed to create pubsub client: %v", err)
+	}
+
+	if err := pubsubClient.EnsureAll(context.Background(), ps.GetTopicConfig(cfg)); err != nil {
+		loggerInstance.Fatalf(context.Background(), "Failed to ensure pubsub topics and subscriptions: %v", err)
+	}
+
+	worker := pubsubworker.New(pubsubClient, loggerInstance)
+
+	ctx := context.Background()
+	worker.Start(
+		ctx,
+		worker.SubscribeUserCreated(ctx, cfg.PubSubSubscriptionUserCreated),
+		// add more subscription here
+	)
 }

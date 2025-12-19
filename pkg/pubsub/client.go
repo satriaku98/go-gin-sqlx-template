@@ -3,12 +3,15 @@ package pubsub
 import (
 	"context"
 	"fmt"
+	"go-gin-sqlx-template/config"
 	"sync"
 
 	"cloud.google.com/go/pubsub/v2"
 	"cloud.google.com/go/pubsub/v2/apiv1/pubsubpb"
 	"google.golang.org/api/option"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 )
 
@@ -21,13 +24,48 @@ type Client struct {
 
 // NewClient creates a new Google Cloud Pub/Sub v2 client for the given project.
 // Caller is responsible for calling Close() to release resources.
-func NewClient(ctx context.Context, projectID string, opts ...option.ClientOption) (*Client, error) {
-	c, err := pubsub.NewClient(ctx, projectID, opts...)
+func NewClient(cfg config.Config) (*Client, error) {
+	if cfg.PubSubProjectID == "" {
+		return nil, fmt.Errorf("PUBSUB_PROJECT_ID is not set in config")
+	}
+
+	options := []option.ClientOption{}
+	if cfg.PubSubCredsFile != "" {
+		options = append(options, option.WithCredentialsFile(cfg.PubSubCredsFile))
+	}
+	if cfg.PubSubEmulatorHost != "" {
+		options = append(options,
+			option.WithEndpoint(cfg.PubSubEmulatorHost),
+			option.WithoutAuthentication(),
+			option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())),
+		)
+	}
+
+	ctx := context.Background()
+
+	c, err := pubsub.NewClient(ctx, cfg.PubSubProjectID, options...)
 	if err != nil {
 		return nil, fmt.Errorf("create pubsub client: %w", err)
 	}
 
 	return &Client{client: c}, nil
+}
+
+// EnsureAll ensures all topics and subscriptions exist.
+// If any topic or subscription does not exist, it will be created.
+// This method is intended to be called during application startup (fail-fast).
+func (c *Client) EnsureAll(ctx context.Context, topics []TopicConfig) error {
+	for _, t := range topics {
+		if err := c.EnsureTopic(ctx, t.Topic); err != nil {
+			return err
+		}
+		for _, sub := range t.Subs {
+			if err := c.EnsureSubscription(ctx, sub, t.Topic); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // EnsureTopic ensures the given topic exists.

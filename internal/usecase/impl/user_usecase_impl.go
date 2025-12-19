@@ -5,12 +5,12 @@ import (
 	"fmt"
 
 	"go-gin-sqlx-template/config"
-	ps "go-gin-sqlx-template/internal/integration/pubsub"
 	"go-gin-sqlx-template/internal/model"
 	"go-gin-sqlx-template/internal/repository"
 	"go-gin-sqlx-template/internal/usecase"
 	"go-gin-sqlx-template/internal/worker"
 	"go-gin-sqlx-template/pkg/logger"
+	ps "go-gin-sqlx-template/pkg/pubsub"
 	"go-gin-sqlx-template/pkg/utils"
 
 	"github.com/hibiken/asynq"
@@ -68,7 +68,7 @@ func (u *userUsecase) CreateUser(ctx context.Context, req model.CreateUserReques
 
 	// Send PubSub message
 	message := fmt.Sprintf("New user created: %s (%s)", user.Name, user.Email)
-	if id, err := u.pubsubClient.Publish(ctx, ps.TopicUserCreated, []byte(message), nil); err != nil {
+	if id, err := u.pubsubClient.Publish(ctx, u.config.PubSubTopicUserCreated, []byte(message), nil); err != nil {
 		u.logger.Errorf(ctx, "Failed to publish pubsub message: %v", err)
 	} else {
 		u.logger.Infof(ctx, "Published message: id=%s", id)
