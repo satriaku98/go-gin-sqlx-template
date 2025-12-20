@@ -1,13 +1,14 @@
 package handler
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 
+	"go-gin-sqlx-template/internal/delivery/http/middleware"
 	"go-gin-sqlx-template/internal/model"
 	"go-gin-sqlx-template/internal/usecase"
 	"go-gin-sqlx-template/pkg/database"
+	"go-gin-sqlx-template/pkg/logger"
 	"go-gin-sqlx-template/pkg/utils"
 
 	"github.com/gin-gonic/gin"
@@ -16,12 +17,14 @@ import (
 type UserHandler struct {
 	userUsecase usecase.UserUsecase
 	redisClient *database.RedisClient
+	logger      *logger.Logger
 }
 
-func NewUserHandler(userUsecase usecase.UserUsecase, redisClient *database.RedisClient) *UserHandler {
+func NewUserHandler(userUsecase usecase.UserUsecase, redisClient *database.RedisClient, logger *logger.Logger) *UserHandler {
 	return &UserHandler{
 		userUsecase: userUsecase,
 		redisClient: redisClient,
+		logger:      logger,
 	}
 }
 
@@ -99,11 +102,11 @@ var (
 	// getAllUsersAllowedFilters defines which filters are allowed for GetAllUsers
 	// only allow name and email
 	getAllUsersAllowedFilters = []string{"name", "email"}
-	
+
 	// sort by id, email, name, created_at, updated_at
 	// default sort by created_at desc
 	// example: ?sort=id,desc&sort=name,asc
-	getAllUsersAllowedSorts   = map[string]string{
+	getAllUsersAllowedSorts = map[string]string{
 		"id":         "id",
 		"email":      "email",
 		"name":       "name",
@@ -183,14 +186,9 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	}
 
 	// Invalidate cache
-	// Note: We need to reconstruct the key used in middleware.
-	// Middleware uses: fmt.Sprintf("cache:%s", c.Request.URL.RequestURI())
-	// For PUT /api/v1/users/:id, the RequestURI is /api/v1/users/123
-	cacheKey := fmt.Sprintf("cache:%s", c.Request.URL.RequestURI())
+	cacheKey := middleware.GetCacheKey(c)
 	if err := h.redisClient.Client.Del(c.Request.Context(), cacheKey).Err(); err != nil {
-		// Log error but don't fail the request
-		// Ideally use logger here, but for now we proceed
-		fmt.Printf("failed to delete cache: %v\n", err)
+		h.logger.Errorf(c.Request.Context(), "failed to delete cache: %v", err)
 	}
 
 	utils.SuccessResponse(c, http.StatusOK, "User updated successfully", user)
@@ -222,9 +220,9 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 	}
 
 	// Invalidate cache
-	cacheKey := fmt.Sprintf("cache:%s", c.Request.URL.RequestURI())
+	cacheKey := middleware.GetCacheKey(c)
 	if err := h.redisClient.Client.Del(c.Request.Context(), cacheKey).Err(); err != nil {
-		fmt.Printf("failed to delete cache: %v\n", err)
+		h.logger.Errorf(c.Request.Context(), "failed to delete cache: %v", err)
 	}
 
 	utils.SuccessResponse(c, http.StatusOK, "User deleted successfully", nil)

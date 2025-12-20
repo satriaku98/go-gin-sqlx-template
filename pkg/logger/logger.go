@@ -52,8 +52,7 @@ func (l *Logger) withTraceID(ctx context.Context) *zap.SugaredLogger {
 
 // WithFields creates a new logger with additional fields
 // This is useful for adding context-specific fields without affecting the base logger
-func (l *Logger) WithFields(ctx context.Context, fields map[string]any) *Logger {
-	logger := l.withTraceID(ctx)
+func (l *Logger) WithFields(fields map[string]any) *Logger {
 
 	// Convert map to key-value pairs for With()
 	args := make([]any, 0, len(fields)*2)
@@ -62,7 +61,7 @@ func (l *Logger) WithFields(ctx context.Context, fields map[string]any) *Logger 
 	}
 
 	return &Logger{
-		sugar: logger.With(args...),
+		sugar: l.sugar.With(args...),
 	}
 }
 

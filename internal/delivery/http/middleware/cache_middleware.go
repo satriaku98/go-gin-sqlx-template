@@ -36,7 +36,7 @@ func CacheMiddleware(redisClient *database.RedisClient, ttl time.Duration, logge
 			return
 		}
 
-		key := fmt.Sprintf("cache:%s", c.Request.URL.RequestURI())
+		key := GetCacheKey(c)
 		ctx := context.Background()
 
 		// Check cache
@@ -62,4 +62,8 @@ func CacheMiddleware(redisClient *database.RedisClient, ttl time.Duration, logge
 			}
 		}
 	}
+}
+
+func GetCacheKey(c *gin.Context) string {
+	return fmt.Sprintf("cache:%s", c.Request.URL.RequestURI())
 }

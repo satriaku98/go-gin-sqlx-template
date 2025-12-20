@@ -27,7 +27,12 @@ type Pagination struct {
 	TotalPages int   `json:"total_pages"`
 }
 
+const (
+	CtxResponseMessageKey = "response_message"
+)
+
 func SuccessResponse(c *gin.Context, statusCode int, message string, data any) {
+	c.Set(CtxResponseMessageKey, message)
 	c.JSON(statusCode, Response{
 		Success: true,
 		Message: message,
@@ -45,10 +50,12 @@ func ErrorResponse(c *gin.Context, statusCode int, message string, err error) {
 		response.Error = err.Error()
 	}
 
+	c.Set(CtxResponseMessageKey, message)
 	c.JSON(statusCode, response)
 }
 
 func PaginatedResponse(c *gin.Context, data any, pagination Pagination) {
+	c.Set(CtxResponseMessageKey, "success")
 	c.JSON(http.StatusOK, PaginationResponse{
 		Success:    true,
 		Data:       data,

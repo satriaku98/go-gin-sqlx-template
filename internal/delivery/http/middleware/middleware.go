@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"go-gin-sqlx-template/pkg/logger"
+	"go-gin-sqlx-template/pkg/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,7 +18,7 @@ func RequestLogger(log *logger.Logger) gin.HandlerFunc {
 		duration := time.Since(startTime)
 
 		// Create logger with request-specific fields
-		requestLogger := log.WithFields(c.Request.Context(), map[string]any{
+		requestLogger := log.WithFields(map[string]any{
 			"method":      c.Request.Method,
 			"path":        c.Request.URL.Path,
 			"status_code": c.Writer.Status(),
@@ -25,8 +26,14 @@ func RequestLogger(log *logger.Logger) gin.HandlerFunc {
 			"client_ip":   c.ClientIP(),
 		})
 
+		// Get message from response ctx
+		message, exists := c.Get(utils.CtxResponseMessageKey)
+		if !exists {
+			message = ""
+		}
+
 		// Log with simple message
-		requestLogger.Info(c.Request.Context(), "HTTP request completed")
+		requestLogger.Info(c.Request.Context(), message)
 	}
 }
 

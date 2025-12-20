@@ -39,8 +39,10 @@ func NewContainer(cfg config.Config, log *logger.Logger, db *database.Database) 
 	}
 
 	// Ensure all topics and subscriptions exist
+	// If any topic or subscription does not exist, it will be created
+	// This method is intended to be called during application startup (fail-fast).
 	if err := pubsubClient.EnsureAll(context.Background(), pubsub.GetTopicConfig(cfg)); err != nil {
-		log.Errorf(context.Background(), "Failed to ensure pubsub topics and subscriptions: %v", err)
+		log.Fatal(context.Background(), "Failed to ensure pubsub topics and subscriptions: %v", err)
 	}
 
 	// Initialize Asynq Client
@@ -58,7 +60,7 @@ func NewContainer(cfg config.Config, log *logger.Logger, db *database.Database) 
 	userUsecase := impl.NewUserUsecase(userRepo, txManager, asynqClient, pubsubClient, cfg, log)
 
 	// Handler layer
-	userHandler := handler.NewUserHandler(userUsecase, redisClient)
+	userHandler := handler.NewUserHandler(userUsecase, redisClient, log)
 
 	// Router
 	r := router.NewRouter(userHandler, log, db, redisClient, cfg)
